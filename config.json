@@ -1,0 +1,11 @@
+{
+  "download_root": "downloads",
+  "cookie_files": {
+    "cookies": "cookies\\cookies.txt"
+  },
+  "filename_template": "%(title).200B.%(ext)s",
+  "restrict_filenames": true,
+  "video_codec": "h264",
+  "max_concurrent_downloads": 2,
+  "default_collection_file": "example.json"
+}

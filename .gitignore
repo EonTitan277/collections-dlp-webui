@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+downloads/
+logs/
+*.log
+*.md
+!README.md
+
+cookies/*
+!cookies/cookies.txt
+collections/*
+!collections/example.json

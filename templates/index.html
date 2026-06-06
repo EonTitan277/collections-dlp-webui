@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TikTok Collection Downloader</title>
+    <link rel="stylesheet" href="/static/css/style.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header">
+        <div>
+          <h1>TikTok Collection Downloader</h1>
+          <p class="subtitle">Manage collection files, edit entries, and prepare downloads.</p>
+        </div>
+      </header>
+
+      <section class="panel">
+        <div class="panel-row wrap">
+          <div class="field-group">
+            <label for="collection-file">Collection file</label>
+            <select id="collection-file"></select>
+          </div>
+          <div class="button-group">
+            <button id="set-default-file" class="button secondary">Set default</button>
+            <button id="delete-file" class="button danger">Delete file</button>
+            <button id="new-file" class="button primary">New file</button>
+            <button id="open-config" class="button">Config</button>
+          </div>
+        </div>
+        <div class="panel-row">
+          <span id="default-label" class="badge"></span>
+          <span id="download-root" class="meta-text"></span>
+        </div>
+        <div id="status-text" class="status-text">Loading collection files...</div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-row space-between">
+          <div>
+            <h2>Collection entries</h2>
+            <p class="subtitle">Select entries to prepare for download or edit item configuration.</p>
+          </div>
+          <div class="button-group">
+            <button id="select-all" class="button">Select all</button>
+            <button id="select-none" class="button">Select none</button>
+            <button id="add-item" class="button primary">Add entry</button>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th><span class="caption">✓</span></th>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Folder</th>
+                <th>Cookie File</th>
+                <th>URL</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="collection-items"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-row space-between">
+          <div>
+            <h2>Download jobs</h2>
+            <p class="subtitle">Track active downloads and open logs for completed jobs.</p>
+          </div>
+          <button id="download-selected" class="button primary">Download Selected</button>
+        </div>
+        <div id="jobs-list" class="jobs-list">
+          <div class="empty-row">No jobs started yet. Select entries and begin a download.</div>
+        </div>
+      </section>
+    </div>
+
+    <div id="modal-backdrop" class="modal hidden"></div>
+
+    <div id="new-file-modal" class="modal-panel hidden">
+      <div class="modal-header">
+        <h3>New collection file</h3>
+      </div>
+      <form id="new-file-form" class="modal-body">
+        <div class="form-field">
+          <label for="new-file-name">File name</label>
+          <input id="new-file-name" type="text" placeholder="example.json" required />
+          <p class="helper-text">Include the .json extension.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="button" data-close="new-file-modal">Cancel</button>
+          <button type="submit" class="button primary">Create</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="item-modal" class="modal-panel hidden">
+      <div class="modal-header">
+        <h3 id="item-modal-title">Add collection entry</h3>
+      </div>
+      <form id="item-form" class="modal-body">
+        <div class="form-field">
+          <label for="item-id">Unique ID</label>
+          <input id="item-id" type="text" placeholder="bible" />
+          <p class="helper-text">Leave blank to auto-generate a unique ID.</p>
+        </div>
+        <div class="form-field">
+          <label for="item-name">Name</label>
+          <input id="item-name" type="text" placeholder="Bible" required />
+        </div>
+        <div class="form-field">
+          <label for="item-url">URL</label>
+          <input id="item-url" type="url" placeholder="https://www.tiktok.com/..." required />
+        </div>
+        <div class="form-field">
+          <label for="item-folder">Folder</label>
+          <input id="item-folder" type="text" placeholder="Bible" required />
+        </div>
+        <div class="form-field">
+          <label for="item-cookie-file">Cookie file</label>
+          <select id="item-cookie-file"></select>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="button" data-close="item-modal">Cancel</button>
+          <button type="submit" class="button primary">Save entry</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="config-modal" class="modal-panel hidden">
+      <div class="modal-header">
+        <h3>Application config</h3>
+      </div>
+      <form id="config-form" class="modal-body">
+        <div class="form-field">
+          <label for="config-download-root">Download root</label>
+          <input id="config-download-root" type="text" required />
+        </div>
+        <div class="form-field">
+          <label for="config-filename-template">Filename template</label>
+          <input id="config-filename-template" type="text" />
+        </div>
+        <div class="form-field">
+          <label for="config-video-codec">Video codec</label>
+          <input id="config-video-codec" type="text" />
+        </div>
+        <div class="form-field checkbox-field">
+          <label><input id="config-restrict-filenames" type="checkbox" /> Restrict filenames</label>
+        </div>
+        <div class="form-field">
+          <label for="config-max-downloads">Max concurrent downloads</label>
+          <input id="config-max-downloads" type="number" min="1" />
+        </div>
+        <div class="form-field">
+          <label for="config-default-collection">Default collection file</label>
+          <input id="config-default-collection" type="text" />
+        </div>
+        <div class="form-field">
+          <label for="config-cookie-files">Cookie files</label>
+          <textarea id="config-cookie-files" rows="5" placeholder="main=cookies/tiktok.txt\nalt=cookies/tiktok_alt.txt"></textarea>
+          <p class="helper-text">Use one key=value pair per line.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="button" data-close="config-modal">Cancel</button>
+          <button type="submit" class="button primary">Save config</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="log-modal" class="modal-panel hidden">
+      <div class="modal-header">
+        <h3 id="log-modal-title">Job Log</h3>
+      </div>
+      <div class="modal-body" style="padding: 20px 24px;">
+        <pre id="log-content" style="background: var(--color-dark); padding: 16px; border-radius: 10px; overflow: auto; max-height: 400px; font-family: monospace; font-size: 0.9rem; white-space: pre-wrap; word-wrap: break-word;"></pre>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="button" data-close="log-modal">Close</button>
+      </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+  </body>
+</html>

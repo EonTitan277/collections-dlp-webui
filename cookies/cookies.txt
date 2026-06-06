@@ -1,0 +1,2 @@
+# Placeholder cookie file
+# Replace this file with your cookies.txt
