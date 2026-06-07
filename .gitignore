@@ -4,9 +4,9 @@ __pycache__/
 downloads/
 logs/
 *.log
-*.md
-!README.md
+*plan.md
 
+*config.json
 cookies/*
 !cookies/cookies.txt
 collections/*
