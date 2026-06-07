@@ -1,0 +1,10 @@
+services:
+  collections-dlp-webui:
+    build: .
+    container_name: collections-dlp-webui
+    ports:
+      - "5555:5555"
+    volumes:
+      - ./downloads:/app/downloads
+      - ./config/config.json:/app/config/config.json
+    restart: unless-stopped

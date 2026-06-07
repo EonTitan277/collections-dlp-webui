@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-CONFIG_PATH = ROOT / "config.json"
+CONFIG_PATH = ROOT / "config/config.json"
 COLLECTIONS_DIR = ROOT / "collections"
 LOGS_DIR = ROOT / "logs"
 JOBS_DIR = ROOT / "jobs"
