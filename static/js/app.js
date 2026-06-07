@@ -35,6 +35,7 @@ const configRestrictFilenames = document.getElementById("config-restrict-filenam
 const configMaxDownloads = document.getElementById("config-max-downloads");
 const configDefaultCollection = document.getElementById("config-default-collection");
 const configCookieFiles = document.getElementById("config-cookie-files");
+const headerSelectAll = document.getElementById("header-select-all");
 
 let configData = null;
 let editingItemId = null;
@@ -390,6 +391,7 @@ function renderItems(items) {
   itemsBody.innerHTML = "";
   if (!items || items.length === 0) {
     itemsBody.innerHTML = '<tr><td colspan="7" class="empty-row">No collection entries found.</td></tr>';
+    updateHeaderCheckboxState();
     return;
   }
 
@@ -415,6 +417,7 @@ function renderItems(items) {
     `;
     itemsBody.appendChild(row);
   });
+  updateHeaderCheckboxState();
 }
 
 function getCurrentFile() {
@@ -686,11 +689,35 @@ async function handleItemActions(event) {
   }
 }
 
+function updateHeaderCheckboxState() {
+  const checkboxes = Array.from(document.querySelectorAll(".item-checkbox"));
+  if (checkboxes.length === 0) {
+    headerSelectAll.checked = false;
+    headerSelectAll.indeterminate = false;
+    return;
+  }
+  
+  const checkedCount = checkboxes.filter(cb => cb.checked).length;
+  const totalCount = checkboxes.length;
+  
+  if (checkedCount === 0) {
+    headerSelectAll.checked = false;
+    headerSelectAll.indeterminate = false;
+  } else if (checkedCount === totalCount) {
+    headerSelectAll.checked = true;
+    headerSelectAll.indeterminate = false;
+  } else {
+    headerSelectAll.checked = false;
+    headerSelectAll.indeterminate = true;
+  }
+}
+
 function toggleSelection(selectAll) {
   const checkboxes = Array.from(document.querySelectorAll(".item-checkbox"));
   checkboxes.forEach((checkbox) => {
     checkbox.checked = selectAll;
   });
+  updateHeaderCheckboxState();
 }
 
 function closeOpenModal(event) {
@@ -722,7 +749,17 @@ addItemButton.addEventListener("click", () => openItemModal());
 selectAllButton.addEventListener("click", () => toggleSelection(true));
 selectNoneButton.addEventListener("click", () => toggleSelection(false));
 downloadSelectedButton.addEventListener("click", startDownload);
-itemsBody.addEventListener("click", handleItemActions);
+headerSelectAll.addEventListener("change", () => {
+  toggleSelection(headerSelectAll.checked);
+});
+itemsBody.addEventListener("click", (event) => {
+  // Handle row checkbox changes
+  if (event.target.classList.contains("item-checkbox")) {
+    updateHeaderCheckboxState();
+  }
+  // Handle other item actions (edit, delete)
+  handleItemActions(event);
+});
 jobsList.addEventListener("click", handleJobActions);
 modalBackdrop.addEventListener("click", () => {
   closeModal(newFileModal);

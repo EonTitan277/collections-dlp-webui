@@ -354,6 +354,19 @@ th {
   white-space: nowrap;
 }
 
+.select-all-header {
+  width: 50px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.header-checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--color-accent);
+}
+
 td {
   padding: 14px 16px;
   text-align: left;
