@@ -29,7 +29,6 @@ class ConfigManager:
             # Generate a default config.json
             default_config = {
                 "download_root": "downloads",
-                "cookie_files": {},
                 "filename_template": "%(title).200B.%(ext)s",
                 "restrict_filenames": True,
                 "video_codec": "h264",
@@ -51,9 +50,6 @@ class ConfigManager:
         if not isinstance(self.data, dict):
             raise ConfigError("config.json must contain a JSON object")
 
-        if "cookie_files" not in self.data or not isinstance(self.data["cookie_files"], dict):
-            raise ConfigError("config.json must include a cookie_files object")
-
         if "download_root" not in self.data:
             raise ConfigError("config.json must include download_root")
 
@@ -62,21 +58,6 @@ class ConfigManager:
             download_root = ROOT / download_root
         download_root.mkdir(parents=True, exist_ok=True)
         self.data["download_root"] = str(download_root)
-
-        missing_files = []
-        for key, value in list(self.data["cookie_files"].items()):
-            cookie_path = Path(value)
-            if not cookie_path.is_absolute():
-                cookie_path = ROOT / cookie_path
-            if not cookie_path.exists():
-                missing_files.append(str(cookie_path))
-            else:
-                self.data["cookie_files"][key] = str(cookie_path)
-
-        if missing_files:
-            raise ConfigError(
-                "Missing cookie files: " + ", ".join(missing_files)
-            )
 
         if "default_collection_file" not in self.data:
             self.data["default_collection_file"] = ""
@@ -87,7 +68,6 @@ class ConfigManager:
 
         allowed_keys = {
             "download_root",
-            "cookie_files",
             "filename_template",
             "restrict_filenames",
             "video_codec",
@@ -97,21 +77,6 @@ class ConfigManager:
         for key in updates:
             if key not in allowed_keys:
                 raise ConfigError(f"Unknown config field: {key}")
-
-        if "cookie_files" in updates:
-            if not isinstance(updates["cookie_files"], dict):
-                raise ConfigError("cookie_files must be an object")
-            sanitized = {}
-            for key, value in updates["cookie_files"].items():
-                if not isinstance(value, str) or not value:
-                    raise ConfigError(f"cookie_files entry for '{key}' must be a non-empty string")
-                cookie_path = Path(value)
-                if not cookie_path.is_absolute():
-                    cookie_path = ROOT / cookie_path
-                if not cookie_path.exists():
-                    raise ConfigError(f"Cookie file does not exist: {cookie_path}")
-                sanitized[key] = str(cookie_path)
-            self.data["cookie_files"] = sanitized
 
         if "download_root" in updates:
             download_root = Path(updates["download_root"])
@@ -130,10 +95,36 @@ class ConfigManager:
         self.validate_config()
         self.save_config()
 
-    def get_cookie_path(self, key: str) -> Path:
-        if key not in self.data["cookie_files"]:
-            raise ConfigError(f"Unknown cookie file key: {key}")
-        return Path(self.data["cookie_files"][key])
+    def get_cookie_path(self, filename: str) -> Path:
+        """Get the path to a cookie file by filename."""
+        cookies_dir = self.get_cookies_dir()
+        cookie_path = cookies_dir / filename
+        if not cookie_path.exists():
+            # Try with .txt extension if not provided
+            if not filename.endswith('.txt'):
+                cookie_path = cookies_dir / (filename + '.txt')
+                if not cookie_path.exists():
+                    raise ConfigError(f"Cookie file not found: {filename}")
+            else:
+                raise ConfigError(f"Cookie file not found: {filename}")
+        return cookie_path
+
+    def list_cookie_files(self) -> list[str]:
+        """Return list of available cookie files from the cookies directory."""
+        cookies_dir = self.get_cookies_dir()
+        if not cookies_dir.exists():
+            return []
+        
+        cookie_files = []
+        for file_path in cookies_dir.iterdir():
+            if file_path.is_file() and file_path.suffix.lower() == '.txt':
+                cookie_files.append(file_path.name)
+        
+        return cookie_files
+
+    def get_cookies_dir(self) -> Path:
+        """Return the cookies directory path."""
+        return ROOT / "cookies"
 
     def get_download_path(self, collection_entry: dict) -> Path:
         folder = collection_entry.get("folder", "")
@@ -177,19 +168,42 @@ class ConfigManager:
         with collection_path.open("r", encoding="utf-8") as handle:
             data = json.load(handle)
 
-        if not isinstance(data, list):
-            raise ConfigError(f"Collection file must contain a JSON array: {collection_path}")
+        # Support both old list format (for migration) and new object format
+        items = []
+        cookie_file = None
+        
+        if isinstance(data, list):
+            # Old format during migration
+            items = data
+        elif isinstance(data, dict):
+            # New format
+            if "items" not in data or not isinstance(data["items"], list):
+                raise ConfigError(f"Collection file must contain 'items' array: {collection_path}")
+            items = data["items"]
+            cookie_file = data.get("cookie_file")
+        else:
+            raise ConfigError(f"Collection file must be a JSON array or object: {collection_path}")
 
-        for item in data:
+        # Validate cookie_file at collection level if present
+        if cookie_file is not None:
+            try:
+                self.get_cookie_path(cookie_file)
+            except ConfigError:
+                raise ConfigError(
+                    f"Unknown cookie_file '{cookie_file}' in {collection_path}"
+                )
+
+        for item in items:
             if not isinstance(item, dict):
                 raise ConfigError(f"Collection entries must be JSON objects: {collection_path}")
             if "id" not in item or "url" not in item or "folder" not in item:
                 raise ConfigError(
                     f"Each collection item must include id, url, and folder: {collection_path}"
                 )
-            if "cookie_file" in item and item["cookie_file"] not in self.data["cookie_files"]:
+            # cookie_file should not be at item level in new format
+            if "cookie_file" in item:
                 raise ConfigError(
-                    f"Unknown cookie_file key '{item['cookie_file']}' in {collection_path}"
+                    f"cookie_file must not be in individual items: {collection_path}"
                 )
         return True
 
@@ -204,7 +218,8 @@ class ConfigManager:
         collection_path = self.collections_dir / file_name
         if collection_path.exists():
             raise ConfigError(f"Collection file already exists: {file_name}")
-        collection_path.write_text("[]", encoding="utf-8")
+        # Create with new object format
+        collection_path.write_text('{"cookie_file": null, "items": []}', encoding="utf-8")
         return collection_path
 
     def delete_collection_file(self, file_name: str) -> None:

@@ -3,18 +3,25 @@ import subprocess
 from pathlib import Path
 from typing import Generator
 
-from config import config_manager
+from config import config_manager, ConfigError
 
 DOWNLOAD_PROGRESS_RE = re.compile(
     r"\[download\]\s+(?P<percent>\d+\.\d+)%.*?ETA\s+(?P<eta>\S+).*?at\s+(?P<speed>\S+)"
 )
 
 
-def build_command(collection_item: dict, config_data: dict) -> list[str]:
+def build_command(collection_item: dict, config_data: dict, cookie_key: str | None = None) -> list[str]:
     output_dir = Path(config_data["download_root"]) / collection_item["folder"]
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    cookie_key = collection_item.get("cookie_file", next(iter(config_data["cookie_files"])))
+    # Determine cookie file to use
+    if cookie_key is None:
+        # Fall back to first available cookie file if none specified
+        if config_data["cookie_files"]:
+            cookie_key = next(iter(config_data["cookie_files"]))
+        else:
+            raise ConfigError("No cookie files configured")
+    
     cookie_path = config_manager.get_cookie_path(cookie_key)
 
     cmd = [

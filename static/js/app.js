@@ -27,7 +27,6 @@ const itemIdField = document.getElementById("item-id");
 const itemNameField = document.getElementById("item-name");
 const itemUrlField = document.getElementById("item-url");
 const itemFolderField = document.getElementById("item-folder");
-const itemCookieField = document.getElementById("item-cookie-file");
 const configDownloadRoot = document.getElementById("config-download-root");
 const configFilenameTemplate = document.getElementById("config-filename-template");
 const configVideoCodec = document.getElementById("config-video-codec");
@@ -37,7 +36,20 @@ const configDefaultCollection = document.getElementById("config-default-collecti
 const configCookieFiles = document.getElementById("config-cookie-files");
 const headerSelectAll = document.getElementById("header-select-all");
 
+// Cookie-related elements
+const collectionCookieSection = document.getElementById("collection-cookie-section");
+const currentCookieFile = document.getElementById("current-cookie-file");
+const uploadCookieBtn = document.getElementById("upload-cookie-btn");
+const selectCookieBtn = document.getElementById("select-cookie-btn");
+const clearCookieBtn = document.getElementById("clear-cookie-btn");
+const cookieFileUpload = document.getElementById("cookie-file-upload");
+const cookieFileSelect = document.getElementById("cookie-file-select");
+const applyCookieBtn = document.getElementById("apply-cookie-btn");
+const deleteCookieBtn = document.getElementById("delete-cookie-btn");
+const cookieSelectModal = document.getElementById("cookie-select-modal");
+
 let configData = null;
+let currentCollectionCookie = null;
 let editingItemId = null;
 let currentLogJobId = null;
 const jobStreams = new Map();
@@ -126,26 +138,22 @@ function resetItemForm() {
   itemNameField.value = "";
   itemUrlField.value = "";
   itemFolderField.value = "";
-  itemCookieField.innerHTML = "";
   renderCookieOptions();
 }
 
 function renderCookieOptions() {
-  itemCookieField.innerHTML = "";
   const cookieFiles = configData?.cookie_files || {};
   const entries = Object.entries(cookieFiles);
   if (entries.length === 0) {
     const option = document.createElement("option");
     option.value = "";
     option.textContent = "(no cookie files configured)";
-    itemCookieField.appendChild(option);
     return;
   }
   entries.forEach(([key]) => {
     const option = document.createElement("option");
     option.value = key;
     option.textContent = key;
-    itemCookieField.appendChild(option);
   });
 }
 
@@ -214,16 +222,35 @@ async function loadCollectionFiles() {
 
 async function loadCollectionItems(fileName) {
   if (!fileName) {
-    itemsBody.innerHTML = '<tr><td colspan="7" class="empty-row">Select a collection file to view entries.</td></tr>';
+    itemsBody.innerHTML = '<tr><td colspan="6" class="empty-row">Select a collection file to view entries.</td></tr>';
+    collectionCookieSection.style.display = "none";
     return;
   }
 
   try {
     const data = await fetchJson(`/api/collection-items?file=${encodeURIComponent(fileName)}`);
     renderItems(data.items || []);
+    
+    // Update collection cookie display
+    currentCollectionCookie = data.cookie_file;
+    updateCollectionCookieDisplay();
+    collectionCookieSection.style.display = "block";
   } catch (err) {
-    itemsBody.innerHTML = '<tr><td colspan="7" class="empty-row">Unable to load collection items.</td></tr>';
+    itemsBody.innerHTML = '<tr><td colspan="6" class="empty-row">Unable to load collection items.</td></tr>';
+    collectionCookieSection.style.display = "none";
     setStatus(`Unable to load items: ${err.message}`, true);
+  }
+}
+
+function updateCollectionCookieDisplay() {
+  if (currentCollectionCookie) {
+    currentCookieFile.textContent = currentCollectionCookie;
+    clearCookieBtn.style.display = "inline-block";
+    deleteCookieBtn.style.display = "inline-block";
+  } else {
+    currentCookieFile.textContent = "(none)";
+    clearCookieBtn.style.display = "none";
+    deleteCookieBtn.style.display = "none";
   }
 }
 
@@ -390,7 +417,7 @@ async function handleJobActions(event) {
 function renderItems(items) {
   itemsBody.innerHTML = "";
   if (!items || items.length === 0) {
-    itemsBody.innerHTML = '<tr><td colspan="7" class="empty-row">No collection entries found.</td></tr>';
+    itemsBody.innerHTML = '<tr><td colspan="6" class="empty-row">No collection entries found.</td></tr>';
     updateHeaderCheckboxState();
     return;
   }
@@ -408,7 +435,6 @@ function renderItems(items) {
       <td>${item.id || ""}</td>
       <td>${item.name || ""}</td>
       <td title="${fullPath}"><span class="folder-value">${item.folder || ""}</span></td>
-      <td>${item.cookie_file || "(default)"}</td>
       <td class="url-cell"><a href="${item.url || "#"}" target="_blank" rel="noreferrer" title="${item.url || ""}">${urlDisplay}</a></td>
       <td class="actions-cell">
         <button class="action-button edit-item" data-item-id="${item.id}">Edit</button>
@@ -490,9 +516,6 @@ async function openConfigEditor() {
   configRestrictFilenames.checked = !!configData.restrict_filenames;
   configMaxDownloads.value = configData.max_concurrent_downloads || 2;
   configDefaultCollection.value = configData.default_collection_file || "";
-  configCookieFiles.value = Object.entries(configData.cookie_files || {})
-    .map(([key, path]) => `${key}=${path}`)
-    .join("\n");
   openModal(configModal);
 }
 
@@ -506,9 +529,6 @@ async function openItemModal(item = null) {
     itemNameField.value = item.name || "";
     itemUrlField.value = item.url || "";
     itemFolderField.value = item.folder || "";
-    if (item.cookie_file) {
-      itemCookieField.value = item.cookie_file;
-    }
   }
   openModal(itemModal);
 }
@@ -571,7 +591,6 @@ async function submitItemForm(event) {
     name: name,
     url: url,
     folder: folder,
-    cookie_file: itemCookieField.value,
   };
 
   try {
@@ -599,28 +618,6 @@ async function submitConfigForm(event) {
     setStatus("Download root is required.", true);
     return;
   }
-  
-  // Validate cookie files format
-  const cookieLines = configCookieFiles.value
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  const cookieFiles = {};
-  for (const line of cookieLines) {
-    const [key, ...rest] = line.split("=");
-    if (!key || rest.length === 0) {
-      setStatus("Cookie files must use key=value format (key=path).", true);
-      return;
-    }
-    cookieFiles[key.trim()] = rest.join("=").trim();
-  }
-  
-  // Validate at least one cookie file exists
-  if (Object.keys(cookieFiles).length === 0) {
-    setStatus("At least one cookie file must be configured.", true);
-    return;
-  }
 
   try {
     await sendJson("/api/config", "PUT", {
@@ -630,7 +627,6 @@ async function submitConfigForm(event) {
       restrict_filenames: configRestrictFilenames.checked,
       max_concurrent_downloads: Number(configMaxDownloads.value) || 1,
       default_collection_file: configDefaultCollection.value.trim(),
-      cookie_files: cookieFiles,
     });
     closeModal(configModal);
     await loadConfig();
@@ -766,14 +762,175 @@ modalBackdrop.addEventListener("click", () => {
   closeModal(itemModal);
   closeModal(configModal);
   closeModal(logModal);
+  closeModal(cookieSelectModal);
 });
 newFileForm.addEventListener("submit", submitNewFileForm);
 itemForm.addEventListener("submit", submitItemForm);
 configForm.addEventListener("submit", submitConfigForm);
 
+// Cookie-related event listeners
+uploadCookieBtn.addEventListener("click", () => {
+  cookieFileUpload.click();
+});
+cookieFileUpload.addEventListener("change", handleCookieFileUpload);
+selectCookieBtn.addEventListener("click", openCookieSelectModal);
+clearCookieBtn.addEventListener("click", clearCollectionCookie);
+deleteCookieBtn.addEventListener("click", handleDeleteCookie);
+applyCookieBtn.addEventListener("click", applySelectedCookie);
+
 Array.from(document.querySelectorAll("[data-close]")).forEach((button) => {
   button.addEventListener("click", closeOpenModal);
 });
+
+// Cookie-related functions
+async function handleCookieFileUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const fileName = getCurrentFile();
+  if (!fileName) {
+    setStatus("No collection file selected.", true);
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    await fetch(`/api/collection-files/${encodeURIComponent(fileName)}/cookie/upload`, {
+      method: "POST",
+      body: formData
+    });
+
+    // Reload collection items to get updated cookie info
+    await loadCollectionItems(fileName);
+    setStatus(`Uploaded and set cookie file: ${file.name}`);
+  } catch (err) {
+    setStatus(`Unable to upload cookie file: ${err.message}`, true);
+  } finally {
+    // Reset file input
+    cookieFileUpload.value = "";
+  }
+}
+
+async function openCookieSelectModal() {
+  const fileName = getCurrentFile();
+  if (!fileName) {
+    setStatus("No collection file selected.", true);
+    return;
+  }
+
+  try {
+    // Fetch available cookie files
+    const data = await fetchJson("/api/cookie-files");
+    const cookieFiles = data.cookie_files || [];
+
+    // Populate select dropdown
+    cookieFileSelect.innerHTML = "";
+    
+    // Add "None" option
+    const noneOption = document.createElement("option");
+    noneOption.value = "";
+    noneOption.textContent = "(none)";
+    cookieFileSelect.appendChild(noneOption);
+
+    // Add available cookie files
+    cookieFiles.forEach(cookieFile => {
+      const option = document.createElement("option");
+      option.value = cookieFile;
+      option.textContent = cookieFile;
+      if (cookieFile === currentCollectionCookie) {
+        option.selected = true;
+      }
+      cookieFileSelect.appendChild(option);
+    });
+
+    openModal(cookieSelectModal);
+  } catch (err) {
+    setStatus(`Unable to load cookie files: ${err.message}`, true);
+  }
+}
+
+async function applySelectedCookie() {
+  const fileName = getCurrentFile();
+  if (!fileName) {
+    setStatus("No collection file selected.", true);
+    return;
+  }
+
+  const selectedCookie = cookieFileSelect.value || null;
+
+  try {
+    await sendJson(`/api/collection-files/${encodeURIComponent(fileName)}/cookie`, "PUT", {
+      cookie_file: selectedCookie
+    });
+
+    // Update local state and UI
+    currentCollectionCookie = selectedCookie;
+    updateCollectionCookieDisplay();
+    closeModal(cookieSelectModal);
+    setStatus(`Set cookie file: ${selectedCookie || "(none)"}`);
+  } catch (err) {
+    setStatus(`Unable to set cookie file: ${err.message}`, true);
+  }
+}
+
+async function clearCollectionCookie() {
+  const fileName = getCurrentFile();
+  if (!fileName) {
+    setStatus("No collection file selected.", true);
+    return;
+  }
+
+  try {
+    await sendJson(`/api/collection-files/${encodeURIComponent(fileName)}/cookie`, "PUT", {
+      cookie_file: null
+    });
+
+    // Update local state and UI
+    currentCollectionCookie = null;
+    updateCollectionCookieDisplay();
+    setStatus("Cleared collection cookie file.");
+  } catch (err) {
+    setStatus(`Unable to clear cookie file: ${err.message}`, true);
+  }
+}
+
+async function handleDeleteCookie() {
+  const fileName = getCurrentFile();
+  if (!fileName) {
+    setStatus("No collection file selected.", true);
+    return;
+  }
+
+  if (!currentCollectionCookie) {
+    setStatus("No cookie file to delete.", true);
+    return;
+  }
+
+  if (!confirm(`Delete cookie file '${currentCollectionCookie}'? This action cannot be undone.`)) {
+    return;
+  }
+
+  try {
+    await fetch(`/api/cookie-files/${encodeURIComponent(currentCollectionCookie)}`, {
+      method: "DELETE"
+    });
+
+    // Update local state and UI
+    currentCollectionCookie = null;
+    updateCollectionCookieDisplay();
+    
+    // Refresh cookie list in selection modal if open
+    if (!cookieSelectModal.classList.contains("hidden")) {
+      await openCookieSelectModal();
+    }
+    
+    setStatus(`Deleted cookie file: ${currentCollectionCookie}`);
+  } catch (err) {
+    setStatus(`Unable to delete cookie file: ${err.message}`, true);
+  }
+}
 
 document.addEventListener("DOMContentLoaded", async () => {
   await loadConfig();

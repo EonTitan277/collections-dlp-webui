@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 from flask import Flask, jsonify, request, render_template, Response, stream_with_context
 
@@ -7,6 +8,8 @@ from collections_manager import (
     add_collection_item,
     get_collection_item,
     get_next_collection_item_id,
+    get_collection_cookie_file,
+    set_collection_cookie_file,
     load_collection_file,
     remove_collection_item,
     update_collection_item,
@@ -95,8 +98,14 @@ def api_collection_items():
         return api_error("No collection file selected")
 
     try:
-        items = load_collection_file(file_name)
-        return jsonify({"file": file_name, "items": items})
+        data = load_collection_file(file_name)
+        items = data.get("items", [])
+        cookie_file = data.get("cookie_file")
+        return jsonify({
+            "file": file_name,
+            "items": items,
+            "cookie_file": cookie_file
+        })
     except FileNotFoundError:
         return api_error(f"Collection file not found: {file_name}", 404)
     except ConfigError as exc:
@@ -155,11 +164,120 @@ def api_remove_collection_item(item_id: str):
         return api_error(str(exc), 400)
 
 
+@app.route("/api/collection-files/<file_name>/cookie", methods=["GET"])
+def api_get_collection_cookie(file_name: str):
+    try:
+        file_name = validate_collection_file_name(file_name)
+        cookie_file = get_collection_cookie_file(file_name)
+        return jsonify({"cookie_file": cookie_file})
+    except ConfigError as exc:
+        return api_error(str(exc), 400)
+    except FileNotFoundError:
+        return api_error(f"Collection file not found: {file_name}", 404)
+
+
+@app.route("/api/collection-files/<file_name>/cookie", methods=["PUT"])
+def api_set_collection_cookie(file_name: str):
+    payload = request.get_json(silent=True) or {}
+    cookie_file = payload.get("cookie_file")  # Can be None to clear
+    
+    try:
+        file_name = validate_collection_file_name(file_name)
+        # Verify collection file exists
+        load_collection_file(file_name)
+        set_collection_cookie_file(file_name, cookie_file)
+        return jsonify({"cookie_file": cookie_file})
+    except ConfigError as exc:
+        return api_error(str(exc), 400)
+    except FileNotFoundError:
+        return api_error(f"Collection file not found: {file_name}", 404)
+
+
+@app.route("/api/collection-files/<file_name>/cookie/upload", methods=["POST"])
+def api_upload_cookie_file(file_name: str):
+    try:
+        file_name = validate_collection_file_name(file_name)
+        # Verify collection file exists
+        load_collection_file(file_name)
+        
+        if 'file' not in request.files:
+            return api_error("No file provided")
+        
+        uploaded_file = request.files['file']
+        if uploaded_file.filename == '':
+            return api_error("No file selected")
+        
+        # Validate filename
+        cookie_filename = Path(uploaded_file.filename).name if uploaded_file.filename else ''
+        if not cookie_filename or not cookie_filename.endswith('.txt'):
+            return api_error("Cookie file must be a .txt file")
+        
+        # Save to cookies directory
+        cookies_dir = config_manager.get_cookies_dir()
+        cookies_dir.mkdir(parents=True, exist_ok=True)
+        cookie_path = cookies_dir / cookie_filename
+        
+        # Save the uploaded file
+        uploaded_file.save(str(cookie_path))
+        
+        # Set this cookie as the collection's cookie
+        set_collection_cookie_file(file_name, cookie_filename)
+        
+        return jsonify({"cookie_file": cookie_filename}), 201
+    except ConfigError as exc:
+        return api_error(str(exc), 400)
+    except FileNotFoundError:
+        return api_error(f"Collection file not found: {file_name}", 404)
+
+
+@app.route("/api/cookie-files", methods=["GET"])
+def api_list_cookie_files():
+    try:
+        cookie_files = config_manager.list_cookie_files()
+        return jsonify({"cookie_files": cookie_files})
+    except Exception as exc:
+        return api_error(str(exc), 500)
+
+
+@app.route("/api/cookie-files/<file_name>", methods=["DELETE"])
+def api_delete_cookie_file(file_name: str):
+    try:
+        # Validate file name (no path traversal, must be .txt)
+        if not file_name or Path(file_name).name != file_name or Path(file_name).suffix.lower() != ".txt":
+            return api_error("Invalid cookie file name", 400)
+        
+        # Get the cookies directory and resolve the file path
+        cookies_dir = config_manager.get_cookies_dir()
+        cookie_path = cookies_dir / file_name
+        
+        # Check if file exists
+        if not cookie_path.exists():
+            return api_error(f"Cookie file not found: {file_name}", 404)
+        
+        # Get the current collection's cookie file
+        current_file = config_manager.data.get("default_collection_file")
+        current_cookie = None
+        if current_file:
+            current_cookie = get_collection_cookie_file(current_file)
+        
+        # Delete the cookie file
+        cookie_path.unlink()
+        
+        # If the deleted cookie is assigned to the current collection, clear it
+        if current_file and current_cookie == file_name:
+            set_collection_cookie_file(current_file, None)
+        
+        return jsonify({"deleted": file_name})
+    except ConfigError as exc:
+        return api_error(str(exc), 400)
+    except Exception as exc:
+        return api_error(f"Unable to delete cookie file: {str(exc)}", 500)
+
+
 @app.route("/api/config", methods=["GET"])
 def api_config():
     sanitized = {
         "download_root": config_manager.data.get("download_root"),
-        "cookie_files": config_manager.data.get("cookie_files", {}),
         "filename_template": config_manager.data.get("filename_template", "%(title).200B.%(ext)s"),
         "restrict_filenames": config_manager.data.get("restrict_filenames", True),
         "video_codec": config_manager.data.get("video_codec", "h264"),

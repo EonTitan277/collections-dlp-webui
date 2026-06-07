@@ -32,6 +32,20 @@
           <span id="default-label" class="badge"></span>
           <span id="download-root" class="meta-text"></span>
         </div>
+        <div class="panel-row wrap">
+          <div class="field-group" id="collection-cookie-section" style="display: none;">
+            <label>Cookie file</label>
+            <div class="cookie-controls">
+              <span id="current-cookie-file" class="cookie-display">(none)</span>
+              <div class="cookie-actions">
+                <button id="upload-cookie-btn" class="button small">Upload</button>
+                <button id="select-cookie-btn" class="button small">Select</button>
+                <button id="clear-cookie-btn" class="button small danger">Clear</button>
+                <button id="delete-cookie-btn" class="button small danger" style="display: none;">Delete</button>
+              </div>
+            </div>
+          </div>
+        </div>
         <div id="status-text" class="status-text">Loading collection files...</div>
       </section>
 
@@ -58,7 +72,6 @@
                 <th>ID</th>
                 <th>Name</th>
                 <th>Folder</th>
-                <th>Cookie File</th>
                 <th>URL</th>
                 <th>Actions</th>
               </tr>
@@ -108,12 +121,12 @@
       <form id="item-form" class="modal-body">
         <div class="form-field">
           <label for="item-id">Unique ID</label>
-          <input id="item-id" type="text" placeholder="bible" />
+          <input id="item-id" type="text" placeholder="----" />
           <p class="helper-text">Leave blank to auto-generate a unique ID.</p>
         </div>
         <div class="form-field">
           <label for="item-name">Name</label>
-          <input id="item-name" type="text" placeholder="Bible" required />
+          <input id="item-name" type="text" placeholder="Name" required />
         </div>
         <div class="form-field">
           <label for="item-url">URL</label>
@@ -121,11 +134,7 @@
         </div>
         <div class="form-field">
           <label for="item-folder">Folder</label>
-          <input id="item-folder" type="text" placeholder="Bible" required />
-        </div>
-        <div class="form-field">
-          <label for="item-cookie-file">Cookie file</label>
-          <select id="item-cookie-file"></select>
+          <input id="item-folder" type="text" placeholder="Folder" required />
         </div>
         <div class="modal-footer">
           <button type="button" class="button" data-close="item-modal">Cancel</button>
@@ -162,11 +171,7 @@
           <label for="config-default-collection">Default collection file</label>
           <input id="config-default-collection" type="text" />
         </div>
-        <div class="form-field">
-          <label for="config-cookie-files">Cookie files</label>
-          <textarea id="config-cookie-files" rows="5" placeholder="main=cookies/tiktok.txt\nalt=cookies/tiktok_alt.txt"></textarea>
-          <p class="helper-text">Use one key=value pair per line.</p>
-        </div>
+
         <div class="modal-footer">
           <button type="button" class="button" data-close="config-modal">Cancel</button>
           <button type="submit" class="button primary">Save config</button>
@@ -186,6 +191,24 @@
       </div>
     </div>
 
+    <div id="cookie-select-modal" class="modal-panel hidden">
+      <div class="modal-header">
+        <h3>Select Cookie File</h3>
+      </div>
+      <div class="modal-body">
+        <div class="form-field">
+          <label for="cookie-file-select">Available cookie files</label>
+          <select id="cookie-file-select" size="5"></select>
+          <p class="helper-text">Select a cookie file to use for this collection.</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="button" data-close="cookie-select-modal">Cancel</button>
+        <button id="apply-cookie-btn" class="button primary">Apply</button>
+      </div>
+    </div>
+
+    <input type="file" id="cookie-file-upload" accept=".txt" style="display: none;" />
     <script src="/static/js/app.js"></script>
   </body>
 </html>

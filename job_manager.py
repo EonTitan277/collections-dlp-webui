@@ -6,7 +6,7 @@ from queue import Queue
 from threading import Lock, Thread
 
 from config import CONFIG_PATH, LOGS_DIR, JOBS_DIR, config_manager, ConfigError
-from collections_manager import get_collection_item
+from collections_manager import get_collection_item, get_collection_cookie_file
 from yt_dlp_runner import build_command, stream_process_output
 
 
@@ -108,7 +108,9 @@ class JobManager:
                         job["status"] = "running"
                     self._enqueue_event(job_id, {"type": "item_started", "job_id": job_id, "item_id": item_id})
 
-                    command = build_command(item, config_manager.data)
+                    # Get collection-level cookie file
+                    cookie_key = get_collection_cookie_file(job["file"])
+                    command = build_command(item, config_manager.data, cookie_key)
                     process = subprocess.Popen(
                         command,
                         stdout=subprocess.PIPE,
