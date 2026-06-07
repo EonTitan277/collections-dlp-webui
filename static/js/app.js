@@ -41,6 +41,7 @@ let editingItemId = null;
 let currentLogJobId = null;
 const jobStreams = new Map();
 const liveJobs = new Map();
+let statusTimeout = null;
 
 async function fetchJson(path) {
   const response = await fetch(path);
@@ -65,8 +66,27 @@ async function sendJson(path, method, body) {
 }
 
 function setStatus(message, isError = false) {
+  // Cancel any pending auto-dismiss timer
+  if (statusTimeout) {
+    clearTimeout(statusTimeout);
+    statusTimeout = null;
+  }
+  
+  // Remove fading class to reset opacity to 1
+  statusText.classList.remove("status-fading");
+  
+  // Display the message
   statusText.textContent = message;
   statusText.classList.toggle("status-error", isError);
+  
+  // Schedule auto-dismiss: 10s for errors, 5s for info
+  const dismissDelay = isError ? 10000 : 5000;
+  statusTimeout = setTimeout(() => {
+    // Fade the entire element (background, border, and text)
+    statusText.classList.add("status-fading");
+    // Don't clear text - just leave it faded. This prevents layout shifts.
+    // The element always maintains its fixed height.
+  }, dismissDelay);
 }
 
 function openModal(modal) {
@@ -182,6 +202,9 @@ async function loadCollectionFiles() {
     if (configData?.default_collection_file) {
       renderConfigSummary();
     }
+    
+    // Clear the initial loading message with a success status
+    setStatus(`Loaded ${data.files.length} collection file(s).`);
   } catch (err) {
     fileSelect.innerHTML = '<option value="">(unable to load files)</option>';
     setStatus(`Unable to load collection files: ${err.message}`, true);

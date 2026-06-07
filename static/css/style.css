@@ -15,8 +15,8 @@
   --color-border: rgba(255, 255, 255, 0.08);
   --color-border-hover: rgba(255, 255, 255, 0.15);
   --color-surface: #2a2a2a;
-  --color-danger: #ef4444;
-  --color-danger-hover: #dc2626;
+  --color-danger: rgba(241, 79, 79, 0.65);
+  --color-danger-hover: #d63d3d;
   --color-success: #22c55e;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
@@ -158,6 +158,7 @@ h1 {
 .panel-row.wrap {
   gap: 16px;
   align-items: flex-start;
+  margin-bottom: 10px;
 }
 
 /* Form Elements */
@@ -301,12 +302,21 @@ select {
   border-radius: var(--radius-sm);
   background: var(--color-accent-dim);
   border-left: 3px solid var(--color-accent);
+  transition: opacity 0.3s ease-in-out;
+  opacity: 1;
+  height: 38px;
+  display: flex;
+  align-items: center;
 }
 
 .status-text.status-error {
   color: #fca5a5;
   background: rgba(239, 68, 68, 0.1);
   border-left-color: var(--color-danger);
+}
+
+.status-text.status-fading {
+  opacity: 0;
 }
 
 .meta-text {
@@ -475,18 +485,17 @@ a:hover {
 
 .action-button:hover {
   background: var(--color-accent);
-  color: var(--color-dark);
   border-color: var(--color-accent);
 }
 
 .action-button.danger {
   background: transparent;
   border-color: var(--color-danger);
-  color: var(--color-danger);
+  color: var(--color-light);
 }
 
 .action-button.danger:hover {
-  background: var(--color-danger);
+  background: var(--color-danger-hover);
   color: white;
 }
 

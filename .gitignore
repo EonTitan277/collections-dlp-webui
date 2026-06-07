@@ -5,8 +5,8 @@ downloads/
 logs/
 *.log
 *plan.md
+*_config.json
 
-*config.json
 cookies/*
 !cookies/cookies.txt
 collections/*
