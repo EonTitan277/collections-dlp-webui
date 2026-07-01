@@ -1,0 +1,9 @@
+.git
+__pycache__/
+.venv/
+*.pyc
+downloads/
+logs/
+*.log
+*plan.md
+*_config.json

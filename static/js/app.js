@@ -78,6 +78,52 @@ async function sendJson(path, method, body) {
   return response.json();
 }
 
+
+// URL display formatter section.
+const urlDisplayFormatters = [formatTikTokUrlDisplay];
+
+function getUrlDisplayText(rawUrl) {
+  if (!rawUrl) return "";
+  for (const formatter of urlDisplayFormatters) {
+    const formatted = formatter(rawUrl);
+    if (formatted) {
+      return formatted;
+    }
+  }
+  return rawUrl.length > 25 ? rawUrl.substring(0, 25) + "..." : rawUrl;
+}
+
+function formatTikTokUrlDisplay(rawUrl) {
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return null;
+  }
+
+  if (!/\.?tiktok\.com$/i.test(parsed.hostname)) {
+    return null;
+  }
+
+  const path = parsed.pathname || "";
+  const firstSlashAfterUsername = (() => {
+    if (!path.startsWith("/")) {
+      return -1;
+    }
+    const secondSlashIndex = path.indexOf("/", 1);
+    return secondSlashIndex;
+  })();
+
+  if (firstSlashAfterUsername <= 0 || firstSlashAfterUsername === path.length - 1) {
+    return null;
+  }
+
+  const snippet = path.substring(firstSlashAfterUsername);
+  const displayed = snippet.length > 25 ? snippet.substring(0, 25) : snippet;
+  return `...${displayed}...`;
+}
+
+
 function setStatus(message, isError = false) {
   // Cancel any pending auto-dismiss timer
   if (statusTimeout) {
@@ -427,9 +473,7 @@ function renderItems(items) {
   items.forEach((item) => {
     const row = document.createElement("tr");
     const fullPath = downloadRoot && item.folder ? `${downloadRoot.replace(/\\$/, "")}${downloadRoot.endsWith("/") || item.folder.startsWith("/") ? "" : "/"}${item.folder}` : item.folder;
-    const urlDisplay = (item.url || "").length > 25 
-      ? (item.url || "").substring(0, 25) + "..." 
-      : (item.url || "");
+    const urlDisplay = getUrlDisplayText(item.url || "");
     row.innerHTML = `
       <td><input type="checkbox" class="item-checkbox" data-item-id="${item.id}" /></td>
       <td>${item.id || ""}</td>
