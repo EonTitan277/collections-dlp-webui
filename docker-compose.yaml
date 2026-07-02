@@ -2,10 +2,14 @@ services:
   collections-dlp-webui:
     build: .
     container_name: collections-dlp-webui
+    restart: unless-stopped
     ports:
       - "5555:5555"
     volumes:
-      - ${DOWNLOADS_PATH}:/app/downloads
-      - ${CONFIG_PATH}:/app/config/config.json
-      - ${COLLECTIONS_PATH}:/app/collections
-    restart: unless-stopped
+      - ${DOWNLOADS_PATH:-collections-dlp-webui}:/app/downloads
+      - ${CONFIGS_PATH:-collections-dlp-webui}:/app/config
+      - ${COLLECTIONS_PATH:-collections-dlp-webui}:/app/collections
+      - ${COOKIES_PATH:-collections-dlp-webui}:/app/cookies
+
+volumes:
+  collections-dlp-webui:
