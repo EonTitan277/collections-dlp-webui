@@ -56,6 +56,17 @@ const jobStreams = new Map();
 const liveJobs = new Map();
 let statusTimeout = null;
 
+// Sort state
+let currentSortBy = "custom";
+let currentSortDirection = "asc";
+let currentItems = [];
+
+// Drag-and-drop state
+let draggedItemId = null;
+let draggedRow = null;
+let activeDropTarget = null;
+let dropPosition = "before";
+
 async function fetchJson(path) {
   const response = await fetch(path);
   if (!response.ok) {
@@ -79,7 +90,82 @@ async function sendJson(path, method, body) {
 }
 
 
-// URL display formatter section.
+
+// Sort items function
+function sortItems(items) {
+  if (!items || items.length === 0) return items;
+  
+  if (currentSortBy === "custom") {
+    return [...items];
+  }
+  
+  const sorted = [...items].sort((a, b) => {
+    const valA = a[currentSortBy] || "";
+    const valB = b[currentSortBy] || "";
+    return valA.localeCompare(valB, undefined, { numeric: true, sensitivity: "base" });
+  });
+  
+  if (currentSortDirection === "desc") {
+    sorted.reverse();
+  }
+  
+  return sorted;
+}
+
+// Update sort controls UI
+function updateSortControls() {
+  const sortBySelect = document.getElementById("sort-by");
+  const sortDirectionBtn = document.getElementById("sort-direction");
+  const sortIcon = sortDirectionBtn?.querySelector(".sort-icon");
+  
+  if (sortBySelect) {
+    sortBySelect.value = currentSortBy;
+  }
+  
+  if (sortDirectionBtn && sortIcon) {
+    sortIcon.textContent = currentSortDirection === "asc" ? "▼" : "▲";
+    sortIcon.classList.toggle("asc", currentSortDirection === "asc");
+  }
+}
+
+// Save sort preferences to backend
+async function saveSortPreferences(fileName) {
+  try {
+    await sendJson(`/api/collection-files/${encodeURIComponent(fileName)}/sort`, "PUT", {
+      sort_by: currentSortBy,
+      sort_direction: currentSortDirection
+    });
+  } catch (err) {
+    console.error("Failed to save sort preferences:", err);
+  }
+}
+
+// Handle sort by change
+function handleSortByChange(event) {
+  currentSortBy = event.target.value;
+  updateSortControls();
+  renderItems(currentItems);
+
+  const fileName = getCurrentFile();
+  if (fileName) {
+    void saveSortPreferences(fileName);
+  }
+}
+
+// Handle sort direction toggle
+function handleSortDirectionToggle() {
+  currentSortDirection = currentSortDirection === "asc" ? "desc" : "asc";
+  updateSortControls();
+  renderItems(currentItems);
+
+  const fileName = getCurrentFile();
+  if (fileName) {
+    void saveSortPreferences(fileName);
+  }
+}
+
+
+
 const urlDisplayFormatters = [formatTikTokUrlDisplay];
 
 function getUrlDisplayText(rawUrl) {
@@ -275,7 +361,11 @@ async function loadCollectionItems(fileName) {
 
   try {
     const data = await fetchJson(`/api/collection-items?file=${encodeURIComponent(fileName)}`);
-    renderItems(data.items || []);
+    currentSortBy = data.sort_by || "custom";
+    currentSortDirection = data.sort_direction || "asc";
+    currentItems = data.items || [];
+    updateSortControls();
+    renderItems(currentItems);
     
     // Update collection cookie display
     currentCollectionCookie = data.cookie_file;
@@ -469,11 +559,20 @@ function renderItems(items) {
   }
 
   const downloadRoot = configData?.download_root || "";
+  const sortedItems = sortItems(items);
+  const isCustomSort = currentSortBy === "custom";
 
-  items.forEach((item) => {
+  sortedItems.forEach((item) => {
     const row = document.createElement("tr");
     const fullPath = downloadRoot && item.folder ? `${downloadRoot.replace(/\\$/, "")}${downloadRoot.endsWith("/") || item.folder.startsWith("/") ? "" : "/"}${item.folder}` : item.folder;
     const urlDisplay = getUrlDisplayText(item.url || "");
+
+    if (isCustomSort) {
+      row.classList.add("draggable-row");
+      row.setAttribute("draggable", "true");
+      row.dataset.itemId = item.id;
+    }
+
     row.innerHTML = `
       <td><input type="checkbox" class="item-checkbox" data-item-id="${item.id}" /></td>
       <td>${item.id || ""}</td>
@@ -488,6 +587,13 @@ function renderItems(items) {
     itemsBody.appendChild(row);
   });
   updateHeaderCheckboxState();
+  
+  // Add or remove drag-and-drop listeners based on sort mode
+  if (isCustomSort) {
+    addDragDropListeners();
+  } else {
+    removeDragDropListeners();
+  }
 }
 
 function getCurrentFile() {
@@ -781,6 +887,10 @@ logModal?.addEventListener("click", (event) => {
 });
 
 fileSelect.addEventListener("change", () => loadCollectionItems(fileSelect.value));
+const sortBySelect = document.getElementById("sort-by");
+const sortDirectionBtn = document.getElementById("sort-direction");
+sortBySelect?.addEventListener("change", handleSortByChange);
+sortDirectionBtn?.addEventListener("click", handleSortDirectionToggle);
 newFileButton.addEventListener("click", openNewFileModal);
 setDefaultButton.addEventListener("click", setDefaultCollectionFile);
 deleteFileButton.addEventListener("click", deleteCollectionFile);
@@ -974,6 +1084,172 @@ async function handleDeleteCookie() {
   } catch (err) {
     setStatus(`Unable to delete cookie file: ${err.message}`, true);
   }
+}
+
+// Drag-and-drop handlers
+function addDragDropListeners() {
+  const rows = Array.from(itemsBody.querySelectorAll("tr[draggable='true']"));
+  rows.forEach(row => {
+    row.addEventListener("dragstart", handleDragStart);
+    row.addEventListener("dragover", handleDragOver);
+    row.addEventListener("drop", handleDrop);
+    row.addEventListener("dragend", handleDragEnd);
+    row.addEventListener("dragleave", handleDragLeave);
+  });
+  itemsBody.addEventListener("dragover", handleBodyDragOver);
+  itemsBody.addEventListener("drop", handleDrop);
+}
+
+function removeDragDropListeners() {
+  const rows = Array.from(itemsBody.querySelectorAll("tr[draggable='true']"));
+  rows.forEach(row => {
+    row.removeEventListener("dragstart", handleDragStart);
+    row.removeEventListener("dragover", handleDragOver);
+    row.removeEventListener("drop", handleDrop);
+    row.removeEventListener("dragend", handleDragEnd);
+    row.removeEventListener("dragleave", handleDragLeave);
+  });
+  itemsBody.removeEventListener("dragover", handleBodyDragOver);
+  itemsBody.removeEventListener("drop", handleDrop);
+}
+
+function handleDragStart(event) {
+  draggedItemId = event.currentTarget.dataset.itemId;
+  draggedRow = event.currentTarget;
+  event.currentTarget.classList.add("dragging");
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/html", event.currentTarget.innerHTML);
+}
+
+function clearActiveDropTarget() {
+  if (activeDropTarget) {
+    activeDropTarget.classList.remove("drag-over-row");
+    activeDropTarget.classList.remove("drag-over-row-bottom");
+  }
+  activeDropTarget = null;
+  dropPosition = "before";
+}
+
+function handleBodyDragOver(event) {
+  if (!draggedRow) {
+    return;
+  }
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "move";
+
+  const rows = Array.from(itemsBody.querySelectorAll("tr[data-item-id]"));
+  if (rows.length === 0) {
+    clearActiveDropTarget();
+    return;
+  }
+
+  const targetRow = rows.find(row => {
+    const rowRect = row.getBoundingClientRect();
+    return event.clientY < rowRect.bottom && event.clientY >= rowRect.top;
+  });
+
+  if (!targetRow || targetRow === draggedRow) {
+    clearActiveDropTarget();
+    return;
+  }
+
+  const rowRect = targetRow.getBoundingClientRect();
+  const position = event.clientY < rowRect.top + rowRect.height / 2 ? "before" : "after";
+
+  if (activeDropTarget !== targetRow || dropPosition !== position) {
+    clearActiveDropTarget();
+    if (position === "before") {
+      targetRow.classList.add("drag-over-row");
+    } else {
+      targetRow.classList.add("drag-over-row-bottom");
+    }
+    activeDropTarget = targetRow;
+    dropPosition = position;
+  }
+}
+
+function handleDragOver(event) {
+  if (!draggedRow || draggedRow === event.currentTarget) {
+    return;
+  }
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "move";
+  event.stopPropagation();
+  handleBodyDragOver(event);
+}
+
+function handleDragLeave(event) {
+  if (event.currentTarget === event.target) {
+    const nextTarget = event.relatedTarget;
+    if (!nextTarget || !event.currentTarget.contains(nextTarget)) {
+      event.currentTarget.classList.remove("drag-over-row");
+      event.currentTarget.classList.remove("drag-over-row-bottom");
+      if (activeDropTarget === event.currentTarget) {
+        clearActiveDropTarget();
+      }
+    }
+  }
+}
+
+function handleDrop(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  
+  const dropRow = activeDropTarget;
+  if (!draggedRow || !dropRow || draggedRow === dropRow) {
+    return;
+  }
+
+  const rows = Array.from(itemsBody.querySelectorAll("tr[data-item-id]"));
+  const orderedIds = [];
+  let inserted = false;
+  
+  rows.forEach((row) => {
+    if (row === draggedRow) {
+      return;
+    }
+
+    if (row === dropRow) {
+      if (dropPosition === "before") {
+        orderedIds.push(draggedItemId);
+      }
+      orderedIds.push(row.dataset.itemId);
+      if (dropPosition === "after") {
+        orderedIds.push(draggedItemId);
+      }
+      inserted = true;
+      return;
+    }
+
+    orderedIds.push(row.dataset.itemId);
+  });
+
+  if (!inserted) {
+    orderedIds.push(draggedItemId);
+  }
+
+  clearActiveDropTarget();
+  
+  // Persist the new order to the backend
+  const fileName = getCurrentFile();
+  if (fileName) {
+    sendJson(`/api/collection-items/reorder?file=${encodeURIComponent(fileName)}`, "PUT", {
+      ordered_ids: orderedIds
+    }).then(() => {
+      // Reload collection items to update the display
+      loadCollectionItems(fileName);
+      setStatus("Items reordered successfully.");
+    }).catch(err => {
+      setStatus(`Failed to reorder items: ${err.message}`, true);
+    });
+  }
+}
+
+function handleDragEnd(event) {
+  event.currentTarget.classList.remove("dragging");
+  clearActiveDropTarget();
+  draggedItemId = null;
+  draggedRow = null;
 }
 
 document.addEventListener("DOMContentLoaded", async () => {

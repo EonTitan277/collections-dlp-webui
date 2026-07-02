@@ -1,5 +1,6 @@
 import json
 import uuid
+import tempfile
 from pathlib import Path
 
 from config import COLLECTIONS_DIR, config_manager, ConfigError
@@ -10,7 +11,7 @@ def collection_file_path(file_name: str) -> Path:
 
 
 def load_collection_file(file_name: str) -> dict:
-    """Load collection file and return dict with 'cookie_file' and 'items'."""
+    """Load collection file and return dict with 'cookie_file', 'items', 'sort_by', and 'sort_direction'."""
     path = collection_file_path(file_name)
     if not path.exists():
         raise FileNotFoundError(f"Collection file not found: {file_name}")
@@ -23,7 +24,9 @@ def load_collection_file(file_name: str) -> dict:
         # Migrate to new format with cookie_file at collection level
         migrated_data = {
             "cookie_file": None,
-            "items": data
+            "items": data,
+            "sort_by": "custom",
+            "sort_direction": "asc"
         }
         # Extract cookie_file from first item if present (assume all items use same cookie)
         if data and "cookie_file" in data[0]:
@@ -42,15 +45,79 @@ def load_collection_file(file_name: str) -> dict:
     if "items" not in data or not isinstance(data["items"], list):
         raise ConfigError(f"Collection file must contain 'items' array: {file_name}")
     
+    # Apply defaults for sort_by and sort_direction if missing (forward compatibility)
+    if "sort_by" not in data:
+        data["sort_by"] = "custom"
+    if "sort_direction" not in data:
+        data["sort_direction"] = "asc"
+    
     return data
 
 
 def save_collection_file(file_name: str, data: dict) -> None:
-    """Save collection file in new object format."""
+    """Save collection file in new object format using atomic writes."""
     path = collection_file_path(file_name)
-    with path.open("w", encoding="utf-8") as handle:
-        json.dump(data, handle, indent=2)
-        handle.write("\n")
+    
+    # Write to a temporary file first to ensure atomicity
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            delete=False,
+            suffix=".json"
+        ) as tmp:
+            json.dump(data, tmp, indent=2)
+            tmp.write("\n")
+            tmp_path = Path(tmp.name)
+        
+        # Atomically replace the original file
+        tmp_path.replace(path)
+    except Exception:
+        # Clean up temp file if replacement failed
+        if tmp_path.exists():
+            tmp_path.unlink()
+        raise
+
+
+def reorder_collection_items(file_name: str, ordered_ids: list[str]) -> None:
+    """Reorder collection items according to the specified ID sequence."""
+    data = load_collection_file(file_name)
+    items = data.get("items", [])
+    
+    # Create a mapping of id -> item for quick lookup
+    id_to_item = {item.get("id"): item for item in items}
+    
+    # Rebuild items array in the specified order
+    reordered_items = []
+    for item_id in ordered_ids:
+        if item_id in id_to_item:
+            reordered_items.append(id_to_item[item_id])
+    
+    # Add any items that weren't in ordered_ids (shouldn't happen, but be safe)
+    for item in items:
+        if item.get("id") not in ordered_ids:
+            reordered_items.append(item)
+    
+    data["items"] = reordered_items
+    save_collection_file(file_name, data)
+
+
+def update_collection_sort_prefs(file_name: str, sort_by: str, sort_direction: str) -> None:
+    """Update sorting preferences for a collection file."""
+    # Validate inputs
+    valid_sort_by = ["id", "name", "folder", "custom"]
+    valid_sort_direction = ["asc", "desc"]
+    
+    if sort_by not in valid_sort_by:
+        raise ConfigError(f"Invalid sort_by value: {sort_by}. Must be one of {valid_sort_by}")
+    if sort_direction not in valid_sort_direction:
+        raise ConfigError(f"Invalid sort_direction value: {sort_direction}. Must be one of {valid_sort_direction}")
+    
+    data = load_collection_file(file_name)
+    data["sort_by"] = sort_by
+    data["sort_direction"] = sort_direction
+    save_collection_file(file_name, data)
 
 
 def get_collection_item(file_name: str, item_id: str) -> dict | None:

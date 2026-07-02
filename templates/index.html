@@ -39,7 +39,7 @@
               <span id="current-cookie-file" class="cookie-display">(none)</span>
               <div class="cookie-actions">
                 <button id="upload-cookie-btn" class="button small">Upload</button>
-                <button id="select-cookie-btn" class="button small">Select</button>
+                <button id="select-cookie-btn" class="button small">Change</button>
                 <button id="clear-cookie-btn" class="button small danger">Clear</button>
                 <button id="delete-cookie-btn" class="button small danger" style="display: none;">Delete</button>
               </div>
@@ -59,6 +59,21 @@
             <button id="select-all" class="button">Select all</button>
             <button id="select-none" class="button">Select none</button>
             <button id="add-item" class="button primary">Add entry</button>
+          </div>
+        </div>
+
+        <div class="panel-row sort">
+          <div class="sort-controls">
+            <label for="sort-by" class="sort-label">Sort by</label>
+            <select id="sort-by" class="sort-select">
+              <option value="id">ID</option>
+              <option value="name">Name</option>
+              <option value="folder">Folder</option>
+              <option value="custom">Custom</option>
+            </select>
+            <button id="sort-direction" type="button" class="button icon-button" title="Toggle sort direction">
+              <span class="sort-icon">▼</span>
+            </button>
           </div>
         </div>
 

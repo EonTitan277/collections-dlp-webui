@@ -5,5 +5,5 @@ __pycache__/
 downloads/
 logs/
 *.log
-*plan.md
+plan-*.md
 *_config.json

@@ -7,5 +7,7 @@
       "url": "https://www.tiktok.com/@example/collection/example-1111111111111111111",
       "folder": "example"
     }
-  ]
+  ],
+  "sort_by": "custom",
+  "sort_direction": "asc"
 }

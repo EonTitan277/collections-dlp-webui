@@ -4,7 +4,7 @@ __pycache__/
 downloads/
 logs/
 *.log
-*plan.md
+plan-*.md
 
 config/*
 !example_config.json

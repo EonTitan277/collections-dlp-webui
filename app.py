@@ -12,6 +12,8 @@ from collections_manager import (
     set_collection_cookie_file,
     load_collection_file,
     remove_collection_item,
+    reorder_collection_items,
+    update_collection_sort_prefs,
     update_collection_item,
 )
 from job_manager import job_manager
@@ -101,10 +103,14 @@ def api_collection_items():
         data = load_collection_file(file_name)
         items = data.get("items", [])
         cookie_file = data.get("cookie_file")
+        sort_by = data.get("sort_by", "custom")
+        sort_direction = data.get("sort_direction", "asc")
         return jsonify({
             "file": file_name,
             "items": items,
-            "cookie_file": cookie_file
+            "cookie_file": cookie_file,
+            "sort_by": sort_by,
+            "sort_direction": sort_direction
         })
     except FileNotFoundError:
         return api_error(f"Collection file not found: {file_name}", 404)
@@ -148,6 +154,43 @@ def api_update_collection_item(item_id: str):
         return api_error(f"Collection item not found: {item_id}", 404)
     except ConfigError as exc:
         return api_error(str(exc), 400)
+
+
+@app.route("/api/collection-items/reorder", methods=["PUT"])
+def api_reorder_collection_items():
+    file_name = request.args.get("file") or config_manager.data.get("default_collection_file")
+    if not file_name:
+        return api_error("No collection file selected")
+    
+    payload = request.get_json(silent=True) or {}
+    ordered_ids = payload.get("ordered_ids", [])
+    
+    if not isinstance(ordered_ids, list):
+        return api_error("ordered_ids must be an array")
+    
+    try:
+        reorder_collection_items(file_name, ordered_ids)
+        return jsonify({"reordered": True})
+    except FileNotFoundError:
+        return api_error(f"Collection file not found: {file_name}", 404)
+    except ConfigError as exc:
+        return api_error(str(exc), 400)
+
+
+@app.route("/api/collection-files/<file_name>/sort", methods=["PUT"])
+def api_update_collection_sort_prefs(file_name: str):
+    try:
+        file_name = validate_collection_file_name(file_name)
+        payload = request.get_json(silent=True) or {}
+        sort_by = payload.get("sort_by", "custom")
+        sort_direction = payload.get("sort_direction", "asc")
+        
+        update_collection_sort_prefs(file_name, sort_by, sort_direction)
+        return jsonify({"sort_by": sort_by, "sort_direction": sort_direction})
+    except ConfigError as exc:
+        return api_error(str(exc), 400)
+    except FileNotFoundError:
+        return api_error(f"Collection file not found: {file_name}", 404)
 
 
 @app.route("/api/collection-items/<item_id>", methods=["DELETE"])

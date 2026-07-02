@@ -91,6 +91,62 @@ textarea {
   overflow: hidden;
 }
 
+.panel-row.sort {
+  margin-top: 8px;
+}
+
+.sort-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sort-label {
+  font-size: 1rem;
+  color: var(--color-light);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.sort-select {
+  min-width: 120px;
+  padding: 6px 14px;
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0;
+}
+
+.icon-button .sort-icon {
+  font-size: 0.95rem;
+}
+
+.draggable-row {
+  cursor: grab;
+}
+
+.draggable-row:active {
+  cursor: grabbing;
+}
+
+.dragging {
+  opacity: 0.5;
+  background-color: rgba(255, 205, 89, 0.1);
+}
+
+.drag-over-row {
+  background: rgba(255, 205, 89, 0.15);
+  border-top: 2px solid var(--color-accent);
+}
+
+.drag-over-row-bottom {
+  box-shadow: inset 0 -2px 0 var(--color-accent);
+}
+
 .app-header::before {
   content: '';
   position: absolute;
@@ -161,7 +217,7 @@ h1 {
 }
 
 #default-label, #download-root {
-    margin: 8px 0 8px 0;
+  margin: 8px 0 8px 0;
 }
 
 /* Form Elements */
