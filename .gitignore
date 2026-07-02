@@ -4,6 +4,7 @@ __pycache__/
 downloads/
 logs/
 *.log
+.env
 plan-*.md
 
 config/*

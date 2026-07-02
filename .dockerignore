@@ -6,5 +6,6 @@ downloads/
 logs/
 *.log
 plan-*.md
+.env*
 test_progress_parsing.py
 *_config.json

@@ -5,6 +5,6 @@ services:
     ports:
       - "5555:5555"
     volumes:
-      - ./downloads:/app/downloads
-      - ./config/config.json:/app/config/config.json
+      - ${DOWNLOADS_PATH}:/app/downloads
+      - ${CONFIG_PATH}:/app/config/config.json
     restart: unless-stopped
