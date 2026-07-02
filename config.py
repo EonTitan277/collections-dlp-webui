@@ -32,10 +32,10 @@ class ConfigManager:
             # Generate a default config.json
             default_config = {
                 "download_root": "downloads",
-                "filename_template": "%(title).200B.%(ext)s",
+                "filename_template": "%(title).50s.%(ext)s",
                 "restrict_filenames": True,
                 "video_codec": "h264",
-                "max_concurrent_downloads": 2,
+                "max_concurrent_downloads": 1,
                 "default_collection_file": "",
             }
             self.data = default_config
