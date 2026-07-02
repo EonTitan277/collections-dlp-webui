@@ -6,7 +6,7 @@ services:
     ports:
       - "5555:5555"
     volumes:
-      - ${DOWNLOADS_PATH:-collections-dlp-webui}:/app/downloads
+      - ${DOWNLOADS_PATH:-./downloads}:/app/downloads
       - ${CONFIGS_PATH:-collections-dlp-webui}:/app/config
       - ${COLLECTIONS_PATH:-collections-dlp-webui}:/app/collections
       - ${COOKIES_PATH:-collections-dlp-webui}:/app/cookies

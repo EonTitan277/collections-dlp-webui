@@ -23,6 +23,9 @@ class ConfigManager:
         self.collections_dir.mkdir(parents=True, exist_ok=True)
         self.logs_dir.mkdir(parents=True, exist_ok=True)
         self.jobs_dir.mkdir(parents=True, exist_ok=True)
+        self.get_cookies_dir().mkdir(parents=True, exist_ok=True)
+        self.ensure_default_cookie_file()
+        self.ensure_example_collection_file()
 
     def load_config(self):
         if not self.config_path.exists():
@@ -141,6 +144,34 @@ class ConfigManager:
 
         resolved.mkdir(parents=True, exist_ok=True)
         return resolved
+
+    def ensure_default_cookie_file(self) -> None:
+        """Create a placeholder cookies.txt if it is missing."""
+        cookies_dir = self.get_cookies_dir()
+        cookies_dir.mkdir(parents=True, exist_ok=True)
+        placeholder = cookies_dir / "cookies.txt"
+        if not placeholder.exists():
+            placeholder.write_text(
+                "# Placeholder cookie file\n# Replace this file with your cookies.txt\n",
+                encoding="utf-8",
+            )
+
+    def ensure_example_collection_file(self) -> None:
+        """Create a default example collection file if it is missing."""
+        example_path = self.collections_dir / "example.json"
+        if not example_path.exists():
+            example_path.write_text(
+                json.dumps(
+                    {
+                        "cookie_file": "cookies.txt",
+                        "items": [],
+                        "sort_by": "custom",
+                        "sort_direction": "asc",
+                    },
+                    indent=2,
+                ) + "\n",
+                encoding="utf-8",
+            )
 
     def is_absolute_or_traversal(self, folder: str) -> bool:
         path = Path(folder)
