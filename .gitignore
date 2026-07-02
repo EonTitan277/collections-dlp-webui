@@ -6,6 +6,7 @@ logs/
 *.log
 .env
 plan-*.md
+_server/
 
 config/*
 !example_config.json

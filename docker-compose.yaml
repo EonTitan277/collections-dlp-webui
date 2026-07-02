@@ -7,4 +7,5 @@ services:
     volumes:
       - ${DOWNLOADS_PATH}:/app/downloads
       - ${CONFIG_PATH}:/app/config/config.json
+      - ${COLLECTIONS_PATH}:/app/collections
     restart: unless-stopped
