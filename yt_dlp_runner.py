@@ -1,3 +1,4 @@
+import logging
 import re
 import subprocess
 from pathlib import Path
@@ -5,8 +6,10 @@ from typing import Generator
 
 from config import config_manager, ConfigError
 
+logger = logging.getLogger(__name__)
+
 DOWNLOAD_PROGRESS_RE = re.compile(
-    r"\[download\]\s+(?P<percent>\d+\.\d+)%.*?ETA\s+(?P<eta>\S+).*?at\s+(?P<speed>\S+)"
+    r"\[download\]\s+(?P<percent>\d+\.\d+)%(?:.*?at\s+(?P<speed>\S+))?(?:.*?ETA\s+(?P<eta>\S+))?"
 )
 
 
@@ -43,6 +46,9 @@ def build_command(collection_item: dict, config_data: dict, cookie_key: str | No
 def parse_progress_line(line: str) -> dict | None:
     match = DOWNLOAD_PROGRESS_RE.search(line)
     if not match:
+        # Log failed parses of [download] lines to catch future regex drift
+        if "[download]" in line:
+            logger.debug(f"Failed to parse [download] line: {line}")
         return None
 
     return {

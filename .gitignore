@@ -12,3 +12,5 @@ cookies/*
 !cookies/cookies.txt
 collections/*
 !collections/example.json
+
+test_progress_parsing.py
