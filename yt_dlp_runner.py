@@ -36,7 +36,7 @@ def build_command(collection_item: dict, config_data: dict, cookie_key: str | No
         "--cookies",
         str(cookie_path),
         "-o",
-        str(output_dir / config_data.get("filename_template", "%(title).200B.%(ext)s")),
+        str(output_dir / config_data.get("filename_template", "%(title).50s.%(ext)s")),
     ]
     if config_data.get("restrict_filenames"):
         cmd.append("--restrict-filenames")

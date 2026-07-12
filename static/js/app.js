@@ -425,8 +425,11 @@ function renderJobs(jobs) {
 
       const status = job.status || "queued";
       const progress = job.progress || { percent: 0, item_id: job.current_item || "" };
+      const completedItems = job.completed_items ?? 0;
+      const totalItems = job.total_items ?? job.collection_item_ids.length;
+      const currentItemName = job.current_item_name || progress.item_id;
       const message = progress.item_id
-        ? `Working on ${progress.item_id}`
+        ? `Working on ${currentItemName}`
         : status === "completed"
         ? "Completed"
         : status === "failed"
@@ -435,11 +438,20 @@ function renderJobs(jobs) {
         ? "Cancelled"
         : "Waiting...";
 
+      const statusClass = status === "completed" ? "status-completed"
+        : status === "failed" ? "status-failed"
+        : "";
+      const progressBarStyle = status === "failed"
+        ? 'background: linear-gradient(90deg, var(--color-danger-hover), var(--color-danger)); width: 100%;'
+        : status === "completed"
+        ? 'background: linear-gradient(90deg, #22c55e, var(--color-success)); width: 100%;'
+        : `width: ${Math.min(progress.percent || 0, 100)}%`;
+
       card.innerHTML = `
         <div class="job-card-header">
           <div>
             <div class="job-title">Job ${job.id}</div>
-            <div class="job-meta">${status.toUpperCase()} · ${job.collection_item_ids.length} item(s)</div>
+            <div class="job-meta ${statusClass}">${status.toUpperCase()} · ${job.collection_item_ids.length} item(s)</div>
           </div>
           <div class="job-actions">
             ${status === "running" || status === "queued" ? `<button class="button danger cancel-job" data-job-id="${job.id}">Cancel</button>` : ""}
@@ -447,8 +459,9 @@ function renderJobs(jobs) {
           </div>
         </div>
         <div class="job-progress-label">${message}</div>
+        <div class="job-items-tracker">${completedItems} / ${totalItems} completed</div>
         <div class="job-progress-bar-wrapper">
-          <div class="job-progress-bar" style="width: ${Math.min(progress.percent || 0, 100)}%"></div>
+          <div class="job-progress-bar ${statusClass}" style="${progressBarStyle}"></div>
         </div>
         <div class="job-progress-meta">${progress.percent?.toFixed(1) || 0}% · ${progress.speed || "-"} · ETA ${progress.eta || "-"}</div>
       `;
@@ -474,7 +487,16 @@ function attachJobStream(jobId, job) {
     if (payload.type === "progress") {
       updateJobState(jobId, { progress: payload, status: "running" });
     } else if (payload.type === "item_started") {
-      updateJobState(jobId, { status: "running", current_item: payload.item_id });
+      updateJobState(jobId, {
+        status: "running",
+        current_item: payload.item_id,
+        current_item_name: payload.item_name || payload.item_id,
+      });
+    } else if (payload.type === "item_completed") {
+      updateJobState(jobId, {
+        completed_items: payload.completed_items,
+        total_items: payload.total_items,
+      });
     } else if (payload.type === "job_failed") {
       updateJobState(jobId, { status: "failed", result: payload.error });
       source.close();
@@ -661,7 +683,7 @@ async function openConfigEditor() {
   }
 
   configDownloadRoot.value = configData.download_root || "";
-  configFilenameTemplate.value = configData.filename_template || "%(title).200B.%(ext)s";
+  configFilenameTemplate.value = configData.filename_template || "%(title).50s.%(ext)s";
   configVideoCodec.value = configData.video_codec || "h264";
   configRestrictFilenames.checked = !!configData.restrict_filenames;
   configMaxDownloads.value = configData.max_concurrent_downloads || 2;

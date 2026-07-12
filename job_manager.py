@@ -37,6 +37,8 @@ class JobManager:
             "current_item": None,
             "result": None,
             "cancel_requested": False,
+            "completed_items": 0,
+            "total_items": len(collection_item_ids),
         }
         with self.lock:
             self.jobs[job_id] = job
@@ -103,10 +105,12 @@ class JobManager:
                     if item is None:
                         raise ConfigError(f"Collection item not found: {item_id}")
 
+                    item_name = item.get("name") or item_id
+
                     with self.lock:
                         job["current_item"] = item_id
                         job["status"] = "running"
-                    self._enqueue_event(job_id, {"type": "item_started", "job_id": job_id, "item_id": item_id})
+                    self._enqueue_event(job_id, {"type": "item_started", "job_id": job_id, "item_id": item_id, "item_name": item_name})
 
                     # Get collection-level cookie file
                     cookie_key = get_collection_cookie_file(job["file"])
@@ -129,6 +133,12 @@ class JobManager:
                     process.wait()
                     if process.returncode != 0 and not job["cancel_requested"]:
                         raise subprocess.CalledProcessError(process.returncode, command)
+
+                    with self.lock:
+                        job["completed_items"] += 1
+                        completed = job["completed_items"]
+                        total = job["total_items"]
+                    self._enqueue_event(job_id, {"type": "item_completed", "job_id": job_id, "item_id": item_id, "completed_items": completed, "total_items": total})
 
                 with self.lock:
                     if job["cancel_requested"]:
@@ -154,7 +164,7 @@ class JobManager:
                 self._enqueue_event(job_id, None)
 
     def _job_summary(self, job: dict) -> dict:
-        return {
+        summary = {
             "id": job["id"],
             "file": job["file"],
             "collection_item_ids": job["collection_item_ids"],
@@ -164,7 +174,15 @@ class JobManager:
             "log_file": job["log_file"],
             "current_item": job.get("current_item"),
             "result": job.get("result"),
+            "completed_items": job.get("completed_items", 0),
+            "total_items": job.get("total_items", len(job["collection_item_ids"])),
         }
+        # Include current_item_name for running jobs (Option A - always show name)
+        if job.get("current_item") and job["status"] == "running":
+            item = get_collection_item(job["file"], job["current_item"])
+            if item:
+                summary["current_item_name"] = item.get("name") or job["current_item"]
+        return summary
 
 
 job_manager = JobManager()

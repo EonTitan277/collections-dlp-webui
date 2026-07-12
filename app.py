@@ -321,7 +321,7 @@ def api_delete_cookie_file(file_name: str):
 def api_config():
     sanitized = {
         "download_root": config_manager.data.get("download_root"),
-        "filename_template": config_manager.data.get("filename_template", "%(title).200B.%(ext)s"),
+        "filename_template": config_manager.data.get("filename_template", "%(title).50s.%(ext)s"),
         "restrict_filenames": config_manager.data.get("restrict_filenames", True),
         "video_codec": config_manager.data.get("video_codec", "h264"),
         "max_concurrent_downloads": config_manager.data.get("max_concurrent_downloads", 2),
