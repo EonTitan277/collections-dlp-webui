@@ -1,9 +1,13 @@
 import json
-import uuid
+import logging
+import shlex
 import tempfile
+import uuid
 from pathlib import Path
 
-from config import COLLECTIONS_DIR, config_manager, ConfigError
+from config import COLLECTIONS_DIR, config_manager, ConfigError, find_denied_arg
+
+logger = logging.getLogger(__name__)
 
 
 def collection_file_path(file_name: str) -> Path:
@@ -26,7 +30,9 @@ def load_collection_file(file_name: str) -> dict:
             "cookie_file": None,
             "items": data,
             "sort_by": "custom",
-            "sort_direction": "asc"
+            "sort_direction": "asc",
+            "custom_ytdlp_args": "",
+            "custom_ytdlp_args_mode": "join",
         }
         # Extract cookie_file from first item if present (assume all items use same cookie)
         if data and "cookie_file" in data[0]:
@@ -50,7 +56,40 @@ def load_collection_file(file_name: str) -> dict:
         data["sort_by"] = "custom"
     if "sort_direction" not in data:
         data["sort_direction"] = "asc"
-    
+
+    # Apply defaults for the new custom yt-dlp args fields if missing
+    data.setdefault("custom_ytdlp_args", "")
+    data.setdefault("custom_ytdlp_args_mode", "join")
+
+    # Sanitize defensively rather than raising: a hand-edited collection file
+    # with an invalid mode or a denied flag must remain readable/fixable
+    # through the UI, since there is no raw-JSON editor in this app.
+    if data.get("custom_ytdlp_args_mode") not in ("join", "override"):
+        logger.warning(
+            "Collection file %s has invalid custom_ytdlp_args_mode %r; resetting to 'join' for this load",
+            file_name, data.get("custom_ytdlp_args_mode"),
+        )
+        data["custom_ytdlp_args_mode"] = "join"
+
+    custom_args = data.get("custom_ytdlp_args", "")
+    if custom_args:
+        try:
+            tokens = shlex.split(custom_args)
+        except ValueError:
+            logger.warning(
+                "Collection file %s has unparsable custom_ytdlp_args %r; resetting to '' for this load",
+                file_name, custom_args,
+            )
+            data["custom_ytdlp_args"] = ""
+        else:
+            denied = find_denied_arg(tokens)
+            if denied:
+                logger.warning(
+                    "Collection file %s has denied flag '%s' in custom_ytdlp_args; resetting to '' for this load",
+                    file_name, denied,
+                )
+                data["custom_ytdlp_args"] = ""
+
     return data
 
 
@@ -204,4 +243,42 @@ def set_collection_cookie_file(file_name: str, cookie_file: str | None) -> None:
         except ConfigError:
             raise ConfigError(f"Unknown cookie file: {cookie_file}")
         data["cookie_file"] = cookie_file
+    save_collection_file(file_name, data)
+
+
+def get_collection_ytdlp_args(file_name: str) -> dict:
+    """Get the custom yt-dlp args and merge mode assigned to this collection."""
+    data = load_collection_file(file_name)
+    return {
+        "custom_ytdlp_args": data.get("custom_ytdlp_args", ""),
+        "custom_ytdlp_args_mode": data.get("custom_ytdlp_args_mode", "join"),
+    }
+
+
+def set_collection_ytdlp_args(file_name: str, custom_args: str, mode: str) -> None:
+    """Set the custom yt-dlp args and merge mode for this collection.
+
+    This is the strict, save-time enforcement point: invalid mode, unbalanced
+    quoting, or a denied flag all raise ConfigError and reject the save.
+    """
+    if mode not in ("join", "override"):
+        raise ConfigError(f"Invalid custom_ytdlp_args_mode: {mode}. Must be 'join' or 'override'")
+
+    if not isinstance(custom_args, str):
+        raise ConfigError("custom_ytdlp_args must be a string")
+
+    if custom_args.strip():
+        try:
+            tokens = shlex.split(custom_args)
+        except ValueError as exc:
+            raise ConfigError(f"custom_ytdlp_args has unbalanced quoting: {exc}")
+        denied = find_denied_arg(tokens)
+        if denied:
+            raise ConfigError(
+                f"custom_ytdlp_args cannot include '{denied}' — this is managed automatically by the app"
+            )
+
+    data = load_collection_file(file_name)
+    data["custom_ytdlp_args"] = custom_args
+    data["custom_ytdlp_args_mode"] = mode
     save_collection_file(file_name, data)

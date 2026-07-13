@@ -2,7 +2,7 @@
   "download_root": "downloads",
   "filename_template": "%(title).50s.%(ext)s",
   "restrict_filenames": true,
-  "video_codec": "h264",
   "max_concurrent_downloads": 2,
-  "default_collection_file": "example.json"
+  "default_collection_file": "example.json",
+  "custom_ytdlp_args": ""
 }

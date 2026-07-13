@@ -1,4 +1,5 @@
 import json
+import shlex
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -7,9 +8,38 @@ COLLECTIONS_DIR = ROOT / "collections"
 LOGS_DIR = ROOT / "logs"
 JOBS_DIR = ROOT / "jobs"
 
+# Flags the app depends on internally for command-building and progress
+# tracking. Custom yt-dlp args (global or per-collection) must never be able
+# to silently override these. Grouped so short/long forms of the same flag
+# are checked together.
+YTDLP_DENIED_ARG_GROUPS = [
+    {"--cookies"},
+    {"-o", "--output"},
+    {"--newline"},
+    {"-q", "--quiet", "--no-progress"},
+    {"--progress-template"},
+    {"-a", "--batch-file"},
+    {"-P", "--paths"},
+    {"--print-json", "--print-jsonl", "-j"},
+]
+
 
 class ConfigError(Exception):
     pass
+
+
+def find_denied_arg(tokens) -> str | None:
+    """Return the first denied flag found in tokens, or None if none found.
+
+    Handles both `--flag value` and `--flag=value` forms by comparing only
+    the portion of each token before the first `=`.
+    """
+    for token in tokens:
+        flag = token.split("=", 1)[0]
+        for group in YTDLP_DENIED_ARG_GROUPS:
+            if flag in group:
+                return flag
+    return None
 
 
 class ConfigManager:
@@ -34,9 +64,9 @@ class ConfigManager:
                 "download_root": "downloads",
                 "filename_template": "%(title).50s.%(ext)s",
                 "restrict_filenames": True,
-                "video_codec": "h264",
                 "max_concurrent_downloads": 1,
                 "default_collection_file": "",
+                "custom_ytdlp_args": "",
             }
             self.data = default_config
             self.save_config()
@@ -65,6 +95,23 @@ class ConfigManager:
         if "default_collection_file" not in self.data:
             self.data["default_collection_file"] = ""
 
+        if "custom_ytdlp_args" not in self.data:
+            self.data["custom_ytdlp_args"] = ""
+
+        custom_ytdlp_args = self.data.get("custom_ytdlp_args", "")
+        if not isinstance(custom_ytdlp_args, str):
+            raise ConfigError("custom_ytdlp_args must be a string")
+        if custom_ytdlp_args.strip():
+            try:
+                tokens = shlex.split(custom_ytdlp_args)
+            except ValueError as exc:
+                raise ConfigError(f"custom_ytdlp_args has unbalanced quoting: {exc}")
+            denied = find_denied_arg(tokens)
+            if denied:
+                raise ConfigError(
+                    f"custom_ytdlp_args cannot include '{denied}' — this is managed automatically by the app"
+                )
+
     def update_config(self, updates: dict) -> None:
         if not isinstance(updates, dict):
             raise ConfigError("Config updates must be a JSON object")
@@ -73,9 +120,9 @@ class ConfigManager:
             "download_root",
             "filename_template",
             "restrict_filenames",
-            "video_codec",
             "max_concurrent_downloads",
             "default_collection_file",
+            "custom_ytdlp_args",
         }
         for key in updates:
             if key not in allowed_keys:
@@ -91,7 +138,7 @@ class ConfigManager:
         if "default_collection_file" in updates:
             self.data["default_collection_file"] = updates["default_collection_file"]
 
-        for key in ["filename_template", "restrict_filenames", "video_codec", "max_concurrent_downloads"]:
+        for key in ["filename_template", "restrict_filenames", "max_concurrent_downloads", "custom_ytdlp_args"]:
             if key in updates:
                 self.data[key] = updates[key]
 
@@ -167,6 +214,8 @@ class ConfigManager:
                         "items": [],
                         "sort_by": "custom",
                         "sort_direction": "asc",
+                        "custom_ytdlp_args": "",
+                        "custom_ytdlp_args_mode": "join",
                     },
                     indent=2,
                 ) + "\n",

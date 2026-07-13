@@ -3,11 +3,13 @@
   "items": [
     {
       "id": "5f61",
-      "name": "Example",
-      "url": "https://www.tiktok.com/@example/collection/example-1111111111111111111",
-      "folder": "example"
+      "name": "Test",
+      "url": "https://www.tiktok.com/@test/collection/test-0000000000000000000",
+      "folder": "test"
     }
   ],
   "sort_by": "custom",
-  "sort_direction": "asc"
+  "sort_direction": "asc",
+  "custom_ytdlp_args": "",
+  "custom_ytdlp_args_mode": "join"
 }

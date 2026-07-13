@@ -29,10 +29,10 @@ const itemUrlField = document.getElementById("item-url");
 const itemFolderField = document.getElementById("item-folder");
 const configDownloadRoot = document.getElementById("config-download-root");
 const configFilenameTemplate = document.getElementById("config-filename-template");
-const configVideoCodec = document.getElementById("config-video-codec");
 const configRestrictFilenames = document.getElementById("config-restrict-filenames");
 const configMaxDownloads = document.getElementById("config-max-downloads");
 const configDefaultCollection = document.getElementById("config-default-collection");
+const configCustomYtdlpArgs = document.getElementById("config-custom-ytdlp-args");
 const configCookieFiles = document.getElementById("config-cookie-files");
 const headerSelectAll = document.getElementById("header-select-all");
 
@@ -48,8 +48,19 @@ const applyCookieBtn = document.getElementById("apply-cookie-btn");
 const deleteCookieBtn = document.getElementById("delete-cookie-btn");
 const cookieSelectModal = document.getElementById("cookie-select-modal");
 
+// Collection-level custom yt-dlp args elements
+const collectionYtdlpArgsSection = document.getElementById("collection-ytdlp-args-section");
+const currentYtdlpArgsDisplay = document.getElementById("current-ytdlp-args");
+const editYtdlpArgsBtn = document.getElementById("edit-ytdlp-args-btn");
+const ytdlpArgsModal = document.getElementById("ytdlp-args-modal");
+const ytdlpArgsInput = document.getElementById("ytdlp-args-input");
+const ytdlpArgsOverride = document.getElementById("ytdlp-args-override");
+const applyYtdlpArgsBtn = document.getElementById("apply-ytdlp-args-btn");
+
 let configData = null;
 let currentCollectionCookie = null;
+let currentCollectionYtdlpArgs = "";
+let currentCollectionYtdlpArgsMode = "join";
 let editingItemId = null;
 let currentLogJobId = null;
 const jobStreams = new Map();
@@ -356,6 +367,7 @@ async function loadCollectionItems(fileName) {
   if (!fileName) {
     itemsBody.innerHTML = '<tr><td colspan="6" class="empty-row">Select a collection file to view entries.</td></tr>';
     collectionCookieSection.style.display = "none";
+    collectionYtdlpArgsSection.style.display = "none";
     return;
   }
 
@@ -371,9 +383,16 @@ async function loadCollectionItems(fileName) {
     currentCollectionCookie = data.cookie_file;
     updateCollectionCookieDisplay();
     collectionCookieSection.style.display = "block";
+
+    // Update collection custom yt-dlp args display
+    currentCollectionYtdlpArgs = data.custom_ytdlp_args || "";
+    currentCollectionYtdlpArgsMode = data.custom_ytdlp_args_mode || "join";
+    updateCollectionYtdlpArgsDisplay();
+    collectionYtdlpArgsSection.style.display = "block";
   } catch (err) {
     itemsBody.innerHTML = '<tr><td colspan="6" class="empty-row">Unable to load collection items.</td></tr>';
     collectionCookieSection.style.display = "none";
+    collectionYtdlpArgsSection.style.display = "none";
     setStatus(`Unable to load items: ${err.message}`, true);
   }
 }
@@ -387,6 +406,15 @@ function updateCollectionCookieDisplay() {
     currentCookieFile.textContent = "(none)";
     clearCookieBtn.style.display = "none";
     deleteCookieBtn.style.display = "none";
+  }
+}
+
+function updateCollectionYtdlpArgsDisplay() {
+  if (currentCollectionYtdlpArgs) {
+    const modeLabel = currentCollectionYtdlpArgsMode === "override" ? "override" : "join";
+    currentYtdlpArgsDisplay.textContent = `${currentCollectionYtdlpArgs} (${modeLabel})`;
+  } else {
+    currentYtdlpArgsDisplay.textContent = "(none)";
   }
 }
 
@@ -444,7 +472,7 @@ function renderJobs(jobs) {
       const progressBarStyle = status === "failed"
         ? 'background: linear-gradient(90deg, var(--color-danger-hover), var(--color-danger)); width: 100%;'
         : status === "completed"
-        ? 'background: linear-gradient(90deg, #22c55e, var(--color-success)); width: 100%;'
+        ? 'background: linear-gradient(90deg, var(--color-success)), #16a34a; width: 100%;'
         : `width: ${Math.min(progress.percent || 0, 100)}%`;
 
       card.innerHTML = `
@@ -684,10 +712,10 @@ async function openConfigEditor() {
 
   configDownloadRoot.value = configData.download_root || "";
   configFilenameTemplate.value = configData.filename_template || "%(title).50s.%(ext)s";
-  configVideoCodec.value = configData.video_codec || "h264";
   configRestrictFilenames.checked = !!configData.restrict_filenames;
   configMaxDownloads.value = configData.max_concurrent_downloads || 2;
   configDefaultCollection.value = configData.default_collection_file || "";
+  configCustomYtdlpArgs.value = configData.custom_ytdlp_args || "";
   openModal(configModal);
 }
 
@@ -795,10 +823,10 @@ async function submitConfigForm(event) {
     await sendJson("/api/config", "PUT", {
       download_root: downloadRoot,
       filename_template: configFilenameTemplate.value.trim(),
-      video_codec: configVideoCodec.value.trim(),
       restrict_filenames: configRestrictFilenames.checked,
       max_concurrent_downloads: Number(configMaxDownloads.value) || 1,
       default_collection_file: configDefaultCollection.value.trim(),
+      custom_ytdlp_args: configCustomYtdlpArgs.value.trim(),
     });
     closeModal(configModal);
     await loadConfig();
@@ -939,6 +967,7 @@ modalBackdrop.addEventListener("click", () => {
   closeModal(configModal);
   closeModal(logModal);
   closeModal(cookieSelectModal);
+  closeModal(ytdlpArgsModal);
 });
 newFileForm.addEventListener("submit", submitNewFileForm);
 itemForm.addEventListener("submit", submitItemForm);
@@ -953,6 +982,10 @@ selectCookieBtn.addEventListener("click", openCookieSelectModal);
 clearCookieBtn.addEventListener("click", clearCollectionCookie);
 deleteCookieBtn.addEventListener("click", handleDeleteCookie);
 applyCookieBtn.addEventListener("click", applySelectedCookie);
+
+// Collection custom yt-dlp args event listeners
+editYtdlpArgsBtn.addEventListener("click", openYtdlpArgsModal);
+applyYtdlpArgsBtn.addEventListener("click", submitCollectionYtdlpArgs);
 
 Array.from(document.querySelectorAll("[data-close]")).forEach((button) => {
   button.addEventListener("click", closeOpenModal);
@@ -1105,6 +1138,44 @@ async function handleDeleteCookie() {
     setStatus(`Deleted cookie file: ${currentCollectionCookie}`);
   } catch (err) {
     setStatus(`Unable to delete cookie file: ${err.message}`, true);
+  }
+}
+
+function openYtdlpArgsModal() {
+  const fileName = getCurrentFile();
+  if (!fileName) {
+    setStatus("No collection file selected.", true);
+    return;
+  }
+
+  ytdlpArgsInput.value = currentCollectionYtdlpArgs || "";
+  ytdlpArgsOverride.checked = currentCollectionYtdlpArgsMode === "override";
+  openModal(ytdlpArgsModal);
+}
+
+async function submitCollectionYtdlpArgs() {
+  const fileName = getCurrentFile();
+  if (!fileName) {
+    setStatus("No collection file selected.", true);
+    return;
+  }
+
+  const customArgs = ytdlpArgsInput.value.trim();
+  const mode = ytdlpArgsOverride.checked ? "override" : "join";
+
+  try {
+    await sendJson(`/api/collection-files/${encodeURIComponent(fileName)}/ytdlp-args`, "PUT", {
+      custom_ytdlp_args: customArgs,
+      custom_ytdlp_args_mode: mode,
+    });
+
+    currentCollectionYtdlpArgs = customArgs;
+    currentCollectionYtdlpArgsMode = mode;
+    updateCollectionYtdlpArgsDisplay();
+    closeModal(ytdlpArgsModal);
+    setStatus("Updated custom yt-dlp arguments.");
+  } catch (err) {
+    setStatus(`Unable to update custom yt-dlp arguments: ${err.message}`, true);
   }
 }
 

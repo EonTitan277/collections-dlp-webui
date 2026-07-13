@@ -8,5 +8,4 @@ logs/
 plan-*.md
 _server/
 .env*
-test_progress_parsing.py
 *_config.json

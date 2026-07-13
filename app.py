@@ -10,6 +10,8 @@ from collections_manager import (
     get_next_collection_item_id,
     get_collection_cookie_file,
     set_collection_cookie_file,
+    get_collection_ytdlp_args,
+    set_collection_ytdlp_args,
     load_collection_file,
     remove_collection_item,
     reorder_collection_items,
@@ -105,12 +107,16 @@ def api_collection_items():
         cookie_file = data.get("cookie_file")
         sort_by = data.get("sort_by", "custom")
         sort_direction = data.get("sort_direction", "asc")
+        custom_ytdlp_args = data.get("custom_ytdlp_args", "")
+        custom_ytdlp_args_mode = data.get("custom_ytdlp_args_mode", "join")
         return jsonify({
             "file": file_name,
             "items": items,
             "cookie_file": cookie_file,
             "sort_by": sort_by,
-            "sort_direction": sort_direction
+            "sort_direction": sort_direction,
+            "custom_ytdlp_args": custom_ytdlp_args,
+            "custom_ytdlp_args_mode": custom_ytdlp_args_mode,
         })
     except FileNotFoundError:
         return api_error(f"Collection file not found: {file_name}", 404)
@@ -236,6 +242,36 @@ def api_set_collection_cookie(file_name: str):
         return api_error(f"Collection file not found: {file_name}", 404)
 
 
+@app.route("/api/collection-files/<file_name>/ytdlp-args", methods=["GET"])
+def api_get_collection_ytdlp_args(file_name: str):
+    try:
+        file_name = validate_collection_file_name(file_name)
+        args_data = get_collection_ytdlp_args(file_name)
+        return jsonify(args_data)
+    except ConfigError as exc:
+        return api_error(str(exc), 400)
+    except FileNotFoundError:
+        return api_error(f"Collection file not found: {file_name}", 404)
+
+
+@app.route("/api/collection-files/<file_name>/ytdlp-args", methods=["PUT"])
+def api_set_collection_ytdlp_args(file_name: str):
+    payload = request.get_json(silent=True) or {}
+    custom_args = payload.get("custom_ytdlp_args", "")
+    mode = payload.get("custom_ytdlp_args_mode", "join")
+
+    try:
+        file_name = validate_collection_file_name(file_name)
+        # Verify collection file exists
+        load_collection_file(file_name)
+        set_collection_ytdlp_args(file_name, custom_args, mode)
+        return jsonify({"custom_ytdlp_args": custom_args, "custom_ytdlp_args_mode": mode})
+    except ConfigError as exc:
+        return api_error(str(exc), 400)
+    except FileNotFoundError:
+        return api_error(f"Collection file not found: {file_name}", 404)
+
+
 @app.route("/api/collection-files/<file_name>/cookie/upload", methods=["POST"])
 def api_upload_cookie_file(file_name: str):
     try:
@@ -323,9 +359,9 @@ def api_config():
         "download_root": config_manager.data.get("download_root"),
         "filename_template": config_manager.data.get("filename_template", "%(title).50s.%(ext)s"),
         "restrict_filenames": config_manager.data.get("restrict_filenames", True),
-        "video_codec": config_manager.data.get("video_codec", "h264"),
         "max_concurrent_downloads": config_manager.data.get("max_concurrent_downloads", 2),
         "default_collection_file": config_manager.data.get("default_collection_file", ""),
+        "custom_ytdlp_args": config_manager.data.get("custom_ytdlp_args", ""),
     }
     return jsonify(sanitized)
 

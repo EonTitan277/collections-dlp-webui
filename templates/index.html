@@ -45,6 +45,15 @@
               </div>
             </div>
           </div>
+          <div class="field-group" id="collection-ytdlp-args-section" style="display: none;">
+            <label>Custom yt-dlp arguments</label>
+            <div class="cookie-controls">
+              <span id="current-ytdlp-args" class="ytdlp-args-display">(none)</span>
+              <div class="cookie-actions">
+                <button id="edit-ytdlp-args-btn" class="button small">Edit</button>
+              </div>
+            </div>
+          </div>
         </div>
         <div id="status-text" class="status-text">Loading collection files...</div>
       </section>
@@ -171,10 +180,6 @@
           <label for="config-filename-template">Filename template</label>
           <input id="config-filename-template" type="text" />
         </div>
-        <div class="form-field">
-          <label for="config-video-codec">Video codec</label>
-          <input id="config-video-codec" type="text" />
-        </div>
         <div class="form-field checkbox-field">
           <label><input id="config-restrict-filenames" type="checkbox" /> Restrict filenames</label>
         </div>
@@ -185,6 +190,13 @@
         <div class="form-field">
           <label for="config-default-collection">Default collection file</label>
           <input id="config-default-collection" type="text" />
+        </div>
+        <div class="form-field">
+          <label for="config-custom-ytdlp-args">Custom yt-dlp arguments</label>
+          <textarea id="config-custom-ytdlp-args" rows="2" placeholder="e.g. --embed-thumbnail --write-thumbnail"></textarea>
+          <p class="field-hint">Applied to every job unless a collection overrides it.<br>
+            <strong>Separate multiple arguments with spaces</strong> (e.g. <code>--embed-thumbnail --write-thumbnail</code>); use quotes for values containing spaces.<br>
+            Cannot include --cookies, -o/--output, --newline, -q/--quiet/--no-progress, --progress-template, -a/--batch-file, -P/--paths, or --print-json/--print-jsonl/-j — these are managed automatically by the app.</p>
         </div>
 
         <div class="modal-footer">
@@ -220,6 +232,27 @@
       <div class="modal-footer">
         <button type="button" class="button" data-close="cookie-select-modal">Cancel</button>
         <button id="apply-cookie-btn" class="button primary">Apply</button>
+      </div>
+    </div>
+
+    <div id="ytdlp-args-modal" class="modal-panel hidden">
+      <div class="modal-header">
+        <h3>Collection yt-dlp arguments</h3>
+      </div>
+      <div class="modal-body">
+        <div class="form-field">
+          <label for="ytdlp-args-input">Custom arguments</label>
+          <textarea id="ytdlp-args-input" rows="3" placeholder="e.g. --embed-thumbnail --write-thumbnail"></textarea>
+        </div>
+        <div class="form-field checkbox-field">
+          <label><input id="ytdlp-args-override" type="checkbox" /> Override global arguments instead of joining them</label>
+        </div>
+        <p class="field-hint"><strong>Separate multiple arguments with spaces</strong> (e.g. <code>--embed-thumbnail --write-thumbnail</code>); use quotes for values containing spaces.<br>
+          Cannot include --cookies, -o/--output, --newline, -q/--quiet/--no-progress, --progress-template, -a/--batch-file, -P/--paths, or --print-json/--print-jsonl/-j — these are managed automatically by the app.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="button" data-close="ytdlp-args-modal">Cancel</button>
+        <button id="apply-ytdlp-args-btn" class="button primary">Save</button>
       </div>
     </div>
 

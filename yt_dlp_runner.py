@@ -1,10 +1,11 @@
 import logging
 import re
+import shlex
 import subprocess
 from pathlib import Path
 from typing import Generator
 
-from config import config_manager, ConfigError
+from config import config_manager, ConfigError, find_denied_arg
 
 logger = logging.getLogger(__name__)
 
@@ -13,15 +14,22 @@ DOWNLOAD_PROGRESS_RE = re.compile(
 )
 
 
-def build_command(collection_item: dict, config_data: dict, cookie_key: str | None = None) -> list[str]:
+def build_command(
+    collection_item: dict,
+    config_data: dict,
+    cookie_key: str | None = None,
+    collection_custom_args: str = "",
+    collection_custom_args_mode: str = "join",
+) -> list[str]:
     output_dir = Path(config_data["download_root"]) / collection_item["folder"]
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Determine cookie file to use
     if cookie_key is None:
         # Fall back to first available cookie file if none specified
-        if config_data["cookie_files"]:
-            cookie_key = next(iter(config_data["cookie_files"]))
+        cookie_files = config_manager.list_cookie_files()
+        if cookie_files:
+            cookie_key = cookie_files[0]
         else:
             raise ConfigError("No cookie files configured")
     
@@ -30,8 +38,6 @@ def build_command(collection_item: dict, config_data: dict, cookie_key: str | No
     cmd = [
         "yt-dlp",
         "--newline",
-        "-S",
-        f"vcodec:{config_data.get('video_codec', 'h264')}",
         collection_item["url"],
         "--cookies",
         str(cookie_path),
@@ -40,6 +46,33 @@ def build_command(collection_item: dict, config_data: dict, cookie_key: str | No
     ]
     if config_data.get("restrict_filenames"):
         cmd.append("--restrict-filenames")
+
+    # Merge global and collection-level custom yt-dlp args.
+    global_custom_args = config_data.get("custom_ytdlp_args", "") or ""
+    collection_custom_args = collection_custom_args or ""
+
+    if collection_custom_args_mode == "override" and collection_custom_args.strip():
+        # Collection args replace the global args entirely, unless the
+        # collection has no custom args at all, in which case the global
+        # args still apply (an empty override should not silently clear
+        # the global config).
+        merged_args = collection_custom_args
+    else:
+        merged_args = " ".join(part for part in (global_custom_args, collection_custom_args) if part.strip())
+
+    if merged_args.strip():
+        merged_tokens = shlex.split(merged_args)
+        # Defense-in-depth: config.json or a collection file may have been
+        # hand-edited after the save-time validations ran. Re-check here so
+        # a denied flag fails the job loudly instead of silently breaking
+        # the command.
+        denied = find_denied_arg(merged_tokens)
+        if denied:
+            raise ConfigError(
+                f"custom_ytdlp_args cannot include '{denied}' — this is managed automatically by the app"
+            )
+        cmd.extend(merged_tokens)
+
     return cmd
 
 
